@@ -95,13 +95,13 @@ jobs:
             mkdir -p unified_artifacts/FreeBSD/Standalone
 
             # Copie des artifacts
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/VST3/${PRODUCT_NAME}.vst3" unified_artifacts/FreeBSD/VST3/
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/LV2/${PRODUCT_NAME}.lv2" unified_artifacts/FreeBSD/LV2/
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/Standalone/${PRODUCT_NAME}" unified_artifacts/FreeBSD/Standalone/
+            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/VST3/${PROJECT_NAME}.vst3" unified_artifacts/FreeBSD/VST3/
+            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/LV2/${PROJECT_NAME}.lv2" unified_artifacts/FreeBSD/LV2/
+            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/Standalone/${PROJECT_NAME}" unified_artifacts/FreeBSD/Standalone/
 
             # Create ZIP
             cd "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE"
-            zip -r "${PRODUCT_NAME}-${VERSION}-FreeBSD.zip" . -x "lib${PRODUCT_NAME}_SharedCode.a"
+            zip -r "${PROJECT_NAME}-${VERSION}-FreeBSD.zip" . -x "lib${PROJECT_NAME}_SharedCode.a"
 
       # Setup MSVC toolchain and developer command prompt (Windows)
       - uses: ilammy/msvc-dev-cmd@v1

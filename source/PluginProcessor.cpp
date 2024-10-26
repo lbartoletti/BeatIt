@@ -90,7 +90,7 @@ void MetronomeAudioProcessor::updateSubdivisionTimings()
     switch (subdivType)
     {
         case Subdivision::Quarter:
-            // Pas de subdivisions additionnelles
+            // No subdivision
             break;
 
         case Subdivision::TwoEighths:
@@ -159,23 +159,20 @@ void MetronomeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = 0; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Détection changement de BPM
     static float lastBpm = bpmParameter->load();
     float currentBpm = bpmParameter->load();
 
-    // Si le BPM a changé et qu'on joue
+    // If
     if (lastBpm != currentBpm && getPlayState())
     {
-        // Coupe le son en cours
-        clickPosition = -1; // Arrête le click en cours
-        soundPosition = 0; // Réinitialise la position
-        currentBeat = 0; // Réinitialise le beat
+        // Stop sound
+        clickPosition = -1; // Stop current click
+        soundPosition = 0; // Réinitialize position
+        currentBeat = 0; // Reinitialize beat
 
-        // Met à jour le timing pour le nouveau BPM
         updateTimingInfo();
         lastBpm = currentBpm;
 
-        // Skip ce buffer pour éviter les artefacts audio
         return;
     }
 
@@ -194,12 +191,10 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
 {
     bool startClick = false;
 
-    // Si on est au début du beat, on joue toujours
     if (soundPosition == 0)
     {
         startClick = true;
     }
-    // Sinon, on vérifie les subdivisions
     else
     {
         const auto subdivType = static_cast<Subdivision> (static_cast<int> (subdivisionParameter->load()));
@@ -236,7 +231,6 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Si on doit jouer un click
     if (currentBeat >= 0 && currentBeat < getBeatsPerBar() && static_cast<size_t> (currentBeat) < mutedBeats.size() && !mutedBeats[currentBeat])
     {
         if (startClick)
@@ -264,7 +258,7 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
                 }
                 else
                 {
-                    clickPosition = -1; // Fin du click
+                    clickPosition = -1;
                 }
             }
         }
@@ -368,7 +362,6 @@ void MetronomeAudioProcessor::updateTimingInfo()
     int bpm = static_cast<int> (std::round (bpmParameter->load()));
     int denominator = getBeatDenominator();
 
-    // Ajuster BPM basé sur le dénominateur de la mesure
     double adjustedBpm = static_cast<double> (bpm * (4.0 / denominator));
     double beatsPerSecond = adjustedBpm / 60.0;
 
@@ -431,7 +424,6 @@ void MetronomeAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto stateTree = state->copyState();
 
-    // Sauvegarde des états muets
     juce::String mutedBeatsStr;
     for (size_t i = 0; i < mutedBeats.size(); ++i)
     {
@@ -457,7 +449,6 @@ void MetronomeAudioProcessor::setStateInformation (const void* data, int sizeInB
         {
             state->replaceState (tree);
 
-            // Restauration des états muets
             juce::String mutedBeatsStr = tree.getProperty ("mutedBeats", "");
             if (mutedBeatsStr.isNotEmpty())
             {
@@ -467,7 +458,7 @@ void MetronomeAudioProcessor::setStateInformation (const void* data, int sizeInB
                 {
                     mutedBeats.push_back (token == "1");
                 }
-                updateMutedBeatsSize(); // S'assurer que la taille est correcte
+                updateMutedBeatsSize();
             }
         }
     }
@@ -486,11 +477,9 @@ void MetronomeAudioProcessor::updateMutedBeatsSize()
     const int newSize = getBeatsPerBar();
     if (static_cast<int> (mutedBeats.size()) != newSize)
     {
-        // Préserver les états existants
         std::vector<bool> oldStates = mutedBeats;
         mutedBeats.resize (newSize, false);
 
-        // Copier les anciens états jusqu'à la taille la plus petite
         for (size_t i = 0; i < std::min (oldStates.size(), mutedBeats.size()); ++i)
         {
             mutedBeats[i] = oldStates[i];

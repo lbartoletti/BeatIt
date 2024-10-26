@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BinaryData.h"
 #include "PluginProcessor.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -8,7 +7,7 @@
 /**
  * @file PluginEditor.h
  * @brief GUI component implementation for the BeatIt metronome plugin
- * @author BeatIt Team
+ * @author Lituus (Loïc Bartoletti)
  * @version 0.0.1
  */
 class NotesComboBox : public juce::ComboBox

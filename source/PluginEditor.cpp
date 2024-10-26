@@ -12,6 +12,9 @@ namespace
 
     namespace Colors
     {
+		/* From my color scheme:
+		   https://github.com/lbartoletti/lituus.nvim/blob/main/lua/lituus/colors.lua
+		*/
         const auto background = juce::Colour (0xFF202020); // bg
         const auto backgroundAlt = juce::Colour (0xFF2A2A2A); // bgAlt
         const auto foreground = juce::Colour (0xFFDDDDDD); // fg
@@ -133,7 +136,6 @@ void MetronomeAudioProcessorEditor::paint (juce::Graphics& g)
         {
             juce::Colour baseColour = (i == 0) ? Colors::red : Colors::blue;
 
-            // Vérifier que i est dans les limites de mutedBeats
             if (i < mutedBeats.size() && mutedBeats[i])
             {
                 baseColour = baseColour.withAlpha (0.3f);

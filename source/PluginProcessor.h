@@ -9,7 +9,7 @@
 /**
  * @file PluginProcessor.h
  * @brief Core processor implementation for the BeatIt metronome plugin
- * @author BeatIt Team
+ * @author Lituus (Loïc Bartoletti)
  * @version 0.0.1
  */
 

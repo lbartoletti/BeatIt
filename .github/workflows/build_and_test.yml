@@ -24,16 +24,13 @@ defaults:
   run:
     shell: bash
 
-# jobs are run in paralell on different machines
-# all steps run in series
 jobs:
   build_and_test:
-    # don't double run on PRs
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # show all errors for each platform (vs. cancel jobs on error)
+      fail-fast: false
       matrix:
         include:
           - name: Linux
@@ -47,22 +44,97 @@ jobs:
             os: windows-latest
             pluginval-binary: ./pluginval.exe
           - name: FreeBSD
-            os: ubuntu-latest # Using vmactions for FreeBSD
+            os: ubuntu-latest
             pluginval-binary: ./pluginval
             use-freebsd: true
 
     steps:
-      # === Setup environnement ===
-      # FreeBSD
-      - uses: actions/checkout@v4
+      # === Setup environment ===
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          submodules: true # Get JUCE populated
-      - name: FreeBSD Build Environment
+          submodules: true
+          
+      # Platform specific setup
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
+      - name: Set up Clang
+        if: runner.os == 'Linux'
+        uses: egor-tensin/setup-clang@v1
+
+      - name: Install JUCE's Linux Deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt install libasound2-dev libx11-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev xvfb ninja-build
+          sudo /usr/bin/Xvfb $DISPLAY &
+
+      - name: Install macOS Deps
+        if: ${{ matrix.name == 'macOS' }}
+        run: brew install ninja osxutils
+
+      - name: Use latest Xcode
+        if: ${{ matrix.name == 'macOS' }}
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # Windows IPP setup
+      - name: Cache IPP
+        if: runner.os == 'Windows'
+        id: cache-ipp
+        uses: actions/cache@v4
+        with:
+          key: ipp-v5
+          path: C:\Program Files (x86)\Intel
+
+      - name: Install IPP
+        if: (runner.os == 'Windows') && (steps.cache-ipp.outputs.cache-hit != 'true')
+        run: |
+          curl --output oneapi.exe https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b4adec02-353b-4144-aa21-f2087040f316/w_ipp_oneapi_p_2021.11.0.533_offline.exe
+          ./oneapi.exe -s -x -f oneapi
+          ./oneapi/bootstrapper.exe -s -c --action install --components=intel.oneapi.win.ipp.devel --eula=accept -p=NEED_VS2022_INTEGRATION=1 --log-dir=.
+
+      - name: Save IPP cache
+        if: runner.os == 'Windows' && (steps.cache-ipp.outputs.cache-hit != 'true')
+        uses: actions/cache/save@v4
+        with:
+          path: C:\Program Files (x86)\Intel
+          key: ipp-v5
+
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja
+
+      - name: Cache the build
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      # Certificates setup for macOS (commented but preserved)
+      # - name: Import Certificates
+        # uses: apple-actions/import-codesign-certs@v3
+        # if: ${{ matrix.name == 'macOS' }}
+        # with:
+          # p12-file-base64: ${{ secrets.DEV_ID_APP_CERT }}
+          # p12-password: ${{ secrets.DEV_ID_APP_PASSWORD }}
+
+      # === Build ===
+      - name: Configure
+        if: ${{ matrix.name != 'FreeBSD' }}
+        run: cmake -B ${{ env.BUILD_DIR }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache ${{ matrix.extra-flags }} .
+
+      - name: Build
+        if: ${{ matrix.name != 'FreeBSD' }}
+        run: cmake --build ${{ env.BUILD_DIR }} --config ${{ env.BUILD_TYPE }} --parallel 4
+
+      # FreeBSD specific build
+      - name: FreeBSD Build
         if: ${{ matrix.name == 'FreeBSD' }}
         uses: vmactions/freebsd-vm@v1
         with:
-          envs: 'BUILD_TYPE BUILD_DIR DISPLAY SCCACHE_GHA_ENABLED SCCACHE_CACHE_MULTIARCH PROJECT_NAME'
+          envs: 'BUILD_TYPE BUILD_DIR PROJECT_NAME'
           usesh: true
+          sync: rsync
+          copyback: true
           prepare: |
             pkg update
             pkg install -y \
@@ -79,104 +151,38 @@ jobs:
               sccache \
               zip \
               unzip \
-              bash
-
+              bash \
+              rsync
           run: |
             pwd
+            ls -la
+            # S'assurer que nous sommes dans le bon répertoire
+            if [ -d "BeatIt" ]; then
+              cd BeatIt
+            fi
+            
             # Configuration
             cmake -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
-
+            
             # Build
             cmake --build $BUILD_DIR --config $BUILD_TYPE --parallel 4
-
-            # Prepare artifacts - création des répertoires individuellement
-            mkdir -p unified_artifacts/FreeBSD/VST3
-            mkdir -p unified_artifacts/FreeBSD/LV2
-            mkdir -p unified_artifacts/FreeBSD/Standalone
-
-            # Copie des artifacts
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/VST3/${PROJECT_NAME}.vst3" unified_artifacts/FreeBSD/VST3/
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/LV2/${PROJECT_NAME}.lv2" unified_artifacts/FreeBSD/LV2/
-            cp -r "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/Standalone/${PROJECT_NAME}" unified_artifacts/FreeBSD/Standalone/
-
-            # Create ZIP
+            
+            # Créer la structure des répertoires pour les artifacts
+            mkdir -p $BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE
+            
+            # Copier les artifacts dans la structure attendue
+            for plugin_type in LV2 Standalone; do
+              mkdir -p "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/$plugin_type"
+              if [ -d "$BUILD_DIR/${plugin_type}" ]; then
+                cp -r "$BUILD_DIR/${plugin_type}"/* "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE/$plugin_type/"
+              fi
+            done
+            
+            # Créer l'archive ZIP
             cd "$BUILD_DIR/${PROJECT_NAME}_artefacts/$BUILD_TYPE"
             zip -r "${PROJECT_NAME}-${VERSION}-FreeBSD.zip" . -x "lib${PROJECT_NAME}_SharedCode.a"
 
-      # Setup MSVC toolchain and developer command prompt (Windows)
-      - uses: ilammy/msvc-dev-cmd@v1
-
-      # Use clang on Linux so we don't introduce a 3rd compiler (Windows and macOS use MSVC and Clang)
-      - name: Set up Clang
-        if: runner.os == 'Linux'
-        uses: egor-tensin/setup-clang@v1
-
-      # This also starts up our "fake" display (Xvfb), needed for pluginval
-      - name: Install JUCE's Linux Deps
-        if: runner.os == 'Linux'
-        # Thanks to McMartin & co https://forum.juce.com/t/list-of-juce-dependencies-under-linux/15121/44
-        run: |
-          sudo apt-get update && sudo apt install libasound2-dev libx11-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev xvfb ninja-build
-          sudo /usr/bin/Xvfb $DISPLAY &
-
-      - name: Cache IPP (Windows)
-        if: runner.os == 'Windows'
-        id: cache-ipp
-        uses: actions/cache@v4
-        with:
-          key: ipp-v5
-          path: C:\Program Files (x86)\Intel
-
-      - name: Install IPP (Windows)
-        if: (runner.os == 'Windows') && (steps.cache-ipp.outputs.cache-hit != 'true')
-        run: |
-          curl --output oneapi.exe https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b4adec02-353b-4144-aa21-f2087040f316/w_ipp_oneapi_p_2021.11.0.533_offline.exe
-          ./oneapi.exe -s -x -f oneapi
-          ./oneapi/bootstrapper.exe -s -c --action install --components=intel.oneapi.win.ipp.devel --eula=accept -p=NEED_VS2022_INTEGRATION=1 --log-dir=.
-
-      - name: Save IPP cache (even on CI fail)
-        if: runner.os == 'Windows' && (steps.cache-ipp.outputs.cache-hit != 'true')
-        uses: actions/cache/save@v4
-        with:
-          path: C:\Program Files (x86)\Intel
-          key: ipp-v5
-
-      - name: Install Ninja (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ninja
-
-      - name: Install macOS Deps
-        if: ${{ matrix.name == 'macOS' }}
-        run: brew install ninja osxutils
-
-      - name: Use latest Xcode on system (macOS)
-        if: ${{ matrix.name == 'macOS' }}
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: true # Get JUCE populated
-
-      - name: Cache the build
-        uses: mozilla-actions/sccache-action@v0.0.6
-
-      # - name: Import Certificates (macOS)
-        # uses: apple-actions/import-codesign-certs@v3
-        # if: ${{ matrix.name == 'macOS' }}
-        # with:
-          # p12-file-base64: ${{ secrets.DEV_ID_APP_CERT }}
-          # p12-password: ${{ secrets.DEV_ID_APP_PASSWORD }}
-
-      # === Build ===
-      - name: Configure
-        run: cmake -B ${{ env.BUILD_DIR }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache ${{ matrix.extra-flags }} .
-
-      - name: Build
-        run: cmake --build ${{ env.BUILD_DIR }} --config ${{ env.BUILD_TYPE }} --parallel 4
-
+      # === Tests (commented but preserved) ===
       # - name: Test
         # working-directory: ${{ env.BUILD_DIR }}
         # run: ./Tests
@@ -185,13 +191,13 @@ jobs:
         # working-directory: ${{ env.BUILD_DIR }}
         # run: ./Benchmarks
 
-      # === Setup environment variables ===
-      - name: Read in .env from CMake # see GitHubENV.cmake
+      # === Environment setup ===
+      - name: Read .env from CMake
         run: |
-          cat .env # show us the config
-          cat .env >> $GITHUB_ENV # pull in our PRODUCT_NAME, etc
+          cat .env
+          cat .env >> $GITHUB_ENV
 
-      - name: Set additional env vars for next steps
+      - name: Set artifacts env vars
         run: |
           ARTIFACTS_PATH=${{ env.BUILD_DIR }}/${{ env.PROJECT_NAME }}_artefacts/${{ env.BUILD_TYPE }}
           echo "ARTIFACTS_PATH=$ARTIFACTS_PATH" >> $GITHUB_ENV
@@ -202,7 +208,7 @@ jobs:
           echo "STANDALONE_PATH=$ARTIFACTS_PATH/Standalone/${{ env.PRODUCT_NAME }}.app" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ matrix.name }}" >> $GITHUB_ENV
 
-      # === Test ===
+      # === Testing ===
       - name: Pluginval
         if: ${{ matrix.name != 'FreeBSD' }}
         run: |
@@ -210,35 +216,44 @@ jobs:
           7z x pluginval_${{ matrix.name }}.zip
           ${{ matrix.pluginval-binary }} --strictness-level 10 --verbose --validate "${{ env.VST3_PATH }}"
 
-      # === Prepare unified artifacts ===
+      # === Artifacts preparation ===
       - name: Prepare Unified Artifacts Directory
         run: |
-          # Create base directory structure for all systems
+          # Create a more organized structure for all platforms
           mkdir -p unified_artifacts/${{ matrix.name }}/{VST3,LV2,Standalone}
           if [ "${{ matrix.name }}" = "macOS" ]; then
             mkdir -p unified_artifacts/${{ matrix.name }}/AU
           fi
 
-          if [ "${{ matrix.name }}" = "Windows" ]; then
-            cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
-            cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
-            cp "${{ env.ARTIFACTS_PATH }}/Standalone/${{ env.PRODUCT_NAME }}.exe" unified_artifacts/${{ matrix.name }}/Standalone/
-          elif [ "${{ matrix.name }}" = "macOS" ]; then
-            cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
-            cp -r "${{ env.AU_PATH }}" unified_artifacts/${{ matrix.name }}/AU/
-            cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
-            cp -r "${{ env.STANDALONE_PATH }}" unified_artifacts/${{ matrix.name }}/Standalone/
-          else  # Linux
-            cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
-            cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
-            cp "${{ env.ARTIFACTS_PATH }}/Standalone/${{ env.PRODUCT_NAME }}" unified_artifacts/${{ matrix.name }}/Standalone/
-          fi
+          # Copy artifacts based on platform
+          case "${{ matrix.name }}" in
+            "Windows")
+              cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
+              cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
+              cp "${{ env.ARTIFACTS_PATH }}/Standalone/${{ env.PRODUCT_NAME }}.exe" unified_artifacts/${{ matrix.name }}/Standalone/
+              ;;
+            "macOS")
+              cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
+              cp -r "${{ env.AU_PATH }}" unified_artifacts/${{ matrix.name }}/AU/
+              cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
+              cp -r "${{ env.STANDALONE_PATH }}" unified_artifacts/${{ matrix.name }}/Standalone/
+              ;;
+            "Linux")
+              cp -r "${{ env.VST3_PATH }}" unified_artifacts/${{ matrix.name }}/VST3/
+              cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
+              cp "${{ env.ARTIFACTS_PATH }}/Standalone/${{ env.PRODUCT_NAME }}" unified_artifacts/${{ matrix.name }}/Standalone/
+              ;;
+            "FreeBSD")
+              cp -r "${{ env.LV2_PATH }}" unified_artifacts/${{ matrix.name }}/LV2/
+              cp "${{ env.ARTIFACTS_PATH }}/Standalone/${{ env.PRODUCT_NAME }}" unified_artifacts/${{ matrix.name }}/Standalone/
+              ;;
+          esac
 
-      # === Platform-specific packaging ===
+      # === Platform specific packaging ===
+      # macOS signing (commented but preserved)
       # - name: Codesign (macOS)
         # if: ${{ matrix.name == 'macOS' }}
         # run: |
-          # Each plugin must be code signed
           # codesign --force -s "${{ secrets.DEVELOPER_ID_APPLICATION}}" -v "${{ env.VST3_PATH }}" --deep --strict --options=runtime --timestamp
           # codesign --force -s "${{ secrets.DEVELOPER_ID_APPLICATION}}" -v "${{ env.AU_PATH }}" --deep --strict --options=runtime --timestamp
           # codesign --force -s "${{ secrets.DEVELOPER_ID_APPLICATION}}" -v "${{ env.STANDALONE_PATH }}" --deep --strict --options=runtime --timestamp
@@ -247,31 +262,21 @@ jobs:
       - name: Add Custom Icons (macOS)
         if: ${{ matrix.name == 'macOS' }}
         run: |
-          # add the icns as its own icon resource (meta!)
           sips -i packaging/BeatIt.icns
-
-          # Grab the resource, put in tempfile
           DeRez -only icns packaging/BeatIt.icns > /tmp/icons
-
-          # Stuff the resource into the Icon file's resource fork
           Rez -a /tmp/icons -o "${{ env.VST3_PATH }}/Icon"
           Rez -a /tmp/icons -o "${{ env.AU_PATH }}/Icon"
           Rez -a /tmp/icons -o "${{ env.LV2_PATH }}/Icon"
-
-          # Set custom icon attribute
           SetFile -a C "${{ env.VST3_PATH }}"
           SetFile -a C "${{ env.AU_PATH }}"
           SetFile -a C "${{ env.LV2_PATH }}"
 
-      - name: Create DMG (macOS)
+      - name: Create DMG and Zip (macOS)
         if: ${{ matrix.name == 'macOS' }}
         run: |
-          # workaround for https://github.com/LinusU/node-appdmg/issues/234
           python3 -m pip install setuptools --break-system-packages
           npm install -g appdmg
           mkdir -p packaging/dmg
-
-          # Create directories for the dmg symlinks
           sudo mkdir -m 755 -p /Library/Audio/Plug-Ins/Components && sudo mkdir -m 755 -p /Library/Audio/Plug-Ins/VST3
           ln -s /Library/Audio/Plug-Ins/Components "packaging/dmg/Your Mac's Component folder"
           ln -s /Library/Audio/Plug-Ins/VST3 "packaging/dmg/Your Mac's VST3 folder"
@@ -280,23 +285,31 @@ jobs:
           cp -r "${{ env.STANDALONE_PATH }}" packaging/dmg/
           cp -r "${{ env.LV2_PATH }}" packaging/dmg/
 
-          # Run appdmg to create the .dmg
+          # Create ZIP
+          zip -r "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip" packaging/dmg/*
+
           cd packaging && appdmg dmg.json "${{ env.ARTIFACT_NAME}}.dmg"
           # codesign -s "${{ secrets.DEVELOPER_ID_APPLICATION}}" --timestamp -i ${{ env.BUNDLE_ID }} --force "${{ env.ARTIFACT_NAME }}.dmg"
           # xcrun notarytool submit "${{ env.ARTIFACT_NAME }}.dmg" --apple-id ${{ secrets.NOTARIZATION_USERNAME }} --password ${{ secrets.NOTARIZATION_PASSWORD }} --team-id ${{ secrets.TEAM_ID }} --wait
           # xcrun stapler staple "${{ env.ARTIFACT_NAME }}.dmg"
 
-      - name: Zip (Linux)
-        if: ${{ matrix.name == 'Linux' }}
-        working-directory: ${{ env.ARTIFACTS_PATH }}
-        run: 7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" "-xr!lib${{ env.PRODUCT_NAME }}_SharedCode.a" .
-
-      - name: Generate Installer (Windows)
-        if: ${{ matrix.name == 'Windows' }}
+      - name: Create Archives
         run: |
-          iscc "packaging\installer.iss"
-          mv "packaging/Output/${{ env.ARTIFACT_NAME }}.exe" "${{ env.ARTIFACTS_PATH }}/"
+          case "${{ matrix.name }}" in
+            "Windows")
+              cd unified_artifacts/${{ matrix.name }}
+              7z a -tzip "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip" ./*
+              cd ../../
+              iscc "packaging\installer.iss"
+              mv "packaging/Output/${{ env.ARTIFACT_NAME }}.exe" "${{ env.ARTIFACTS_PATH }}/"
+              ;;
+            "Linux"|"FreeBSD")
+              cd "${{ env.ARTIFACTS_PATH }}"
+              7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" "-xr!lib${{ env.PRODUCT_NAME }}_SharedCode.a" .
+              ;;
+          esac
 
+      # Windows signing (commented but preserved)
       # - name: Codesign with Azure Trusted Signing (Windows)
         # if: ${{ matrix.name == 'Windows' }}
         # uses: azure/trusted-signing-action@v0.5.0
@@ -311,16 +324,6 @@ jobs:
           # files-folder-filter: exe
 
       # === Upload artifacts ===
-      - name: Upload Unified Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-binaries
-          path: unified_artifacts
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 9
-          overwrite: true
-
       - name: Upload Exe (Windows)
         if: ${{ matrix.name == 'Windows' }}
         uses: actions/upload-artifact@v4
@@ -328,6 +331,13 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}.exe
           path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.exe"
 
+      - name: Upload Zip (Windows)
+        if: ${{ matrix.name == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}.zip
+          path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip"
+          
       - name: Upload Zip (Linux)
         if: ${{ matrix.name == 'Linux' }}
         uses: actions/upload-artifact@v4
@@ -337,6 +347,13 @@ jobs:
           
       - name: Upload Zip (FreeBSD)
         if: ${{ matrix.name == 'FreeBSD' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}.zip
+          path: "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip"
+
+      - name: Upload Zip (macOS)
+        if: ${{ matrix.name == 'macOS' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}.zip
@@ -366,12 +383,6 @@ jobs:
       - name: Get Artifacts
         uses: actions/download-artifact@v4
 
-      # Create a unified zip of all binaries
-      - name: Zip Binaries
-        run: |
-          cd "${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-binaries"
-          zip -r "../${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-all-binaries.zip" .
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -380,4 +391,3 @@ jobs:
             */*.exe
             */*.zip
             */*.dmg
-            ${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-all-binaries.zip

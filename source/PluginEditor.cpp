@@ -237,7 +237,10 @@ void MetronomeAudioProcessorEditor::buttonClicked (juce::Button* button)
 {
     if (button == &tapTempoButton)
     {
-        // TODO: Implement tap tempo
+        if (button == &tapTempoButton)
+        {
+            audioProcessor.processTapTempo();
+        }
     }
 }
 

@@ -537,3 +537,22 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new MetronomeAudioProcessor();
 }
+
+//==============================================================================
+// Tap Tempo
+//==============================================================================
+void MetronomeAudioProcessor::processTapTempo()
+{
+    tapTempoCalculator.tap();
+    double newBpm = tapTempoCalculator.calculateBPM();
+
+    // Round to nearest integer BPM
+    newBpm = std::round (newBpm);
+
+    // Clamp BPM to valid range
+    newBpm = std::clamp (newBpm, MIN_BPM, MAX_BPM);
+
+    // Update BPM parameter
+    state->getParameter ("bpm")->setValueNotifyingHost (
+        state->getParameter ("bpm")->convertTo0to1 (newBpm));
+}

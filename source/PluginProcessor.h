@@ -14,6 +14,105 @@
  */
 
 /**
+ * @brief Calculator for tap tempo functionality
+ * 
+ * This class handles the tap tempo mechanism by:
+ * - Recording intervals between taps
+ * - Computing average BPM from these intervals
+ * - Handling edge cases (too fast/slow taps)
+ * - Auto-resetting after timeout
+ */
+class TapTempoCalculator
+{
+public:
+    /**
+     * @brief Process a new tap event
+     * 
+     * Records the time of the tap and calculates the interval from the last tap.
+     * Implements the following rules:
+     * - Ignores intervals shorter than 120ms (> 500 BPM)
+     * - Ignores intervals longer than 2000ms (< 30 BPM)
+     * - Maintains a history of up to 4 intervals
+     * - Auto-resets if no tap received within 2 seconds
+     */
+    void tap()
+    {
+        auto currentTime = juce::Time::getMillisecondCounterHiRes();
+
+        if (!lastTapTime.has_value())
+        {
+            lastTapTime = currentTime;
+            return;
+        }
+
+        // Calculate interval since last tap
+        auto interval = currentTime - *lastTapTime;
+        lastTapTime = currentTime;
+
+        // Ignore taps that would result in BPM outside valid range (30-500 BPM)
+        if (interval < 120.0 || interval > 2000.0)
+        {
+            reset();
+            return;
+        }
+
+        // Add interval to history
+        intervals.push_back (interval);
+
+        // Keep only the last 4 intervals for average calculation
+        if (intervals.size() > 4)
+            intervals.erase (intervals.begin());
+
+        // Reset if no tap received within 2 seconds
+        if (currentTime - *lastTapTime > 2000.0)
+            reset();
+    }
+
+    /**
+     * @brief Calculate the current BPM based on recorded tap intervals
+     * 
+     * Computes the average interval from the recorded tap history and
+     * converts it to BPM (beats per minute).
+     * 
+     * @return double The calculated BPM, defaults to 120.0 if no intervals recorded
+     */
+    double calculateBPM() const
+    {
+        if (intervals.empty())
+            return 120.0;
+
+        // Calculate average interval
+        double averageInterval = 0.0;
+        for (const auto& interval : intervals)
+            averageInterval += interval;
+
+        averageInterval /= intervals.size();
+
+        // Convert average interval to BPM (60000ms = 1 minute)
+        return 60000.0 / averageInterval;
+    }
+
+    /**
+     * @brief Reset the tap tempo calculator
+     * 
+     * Clears all recorded intervals and last tap time.
+     * Called when:
+     * - A tap is too fast or too slow
+     * - No tap received within timeout period
+     * - Manual reset is needed
+     */
+    void reset()
+    {
+        intervals.clear();
+        lastTapTime.reset();
+    }
+
+private:
+    std::vector<double> intervals; ///< Storage for inter-tap intervals
+    std::optional<double> lastTapTime; ///< Timestamp of the last tap
+};
+
+/**
  * @class MetronomeAudioProcessor
  * @brief Main processor class for the BeatIt metronome plugin
  * 
@@ -303,6 +402,19 @@ public:
     std::vector<float> getSubdivisionTimings() const;
     ///@}
 
+    //==============================================================================
+    /** @name Tap Tempo */
+    /**
+     * @brief Process a tap tempo event
+     * 
+     * Handles a new tap tempo event by:
+     * 1. Recording the tap
+     * 2. Calculating new BPM
+     * 3. Updating the BPM parameter if valid
+     */
+    void processTapTempo();
+    ///@}
+
 private:
     //==============================================================================
     /** @name Initialization Methods */
@@ -377,6 +489,11 @@ private:
      * based on the current subdivision pattern.
      */
     void updateSubdivisionTimings();
+    ///@}
+
+    //==============================================================================
+    /** @name Tap Tempo */
+    TapTempoCalculator tapTempoCalculator; ///< Calculator for tap tempo functionality
     ///@}
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MetronomeAudioProcessor)

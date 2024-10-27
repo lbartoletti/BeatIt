@@ -1,56 +1,77 @@
 #pragma once
 
+#include "SubdivisionTypes.h"
 #include <juce_core/juce_core.h>
-
-/**
- * @file NotationManager.h
- * @brief Musical notation management utilities
- * @author Lituus (Loïc Bartoletti)
- * @version 0.0.1
- */
-
-/**
- * @struct MusicalSymbol
- * @brief Represents a basic musical symbol (note or rest)
- */
-struct MusicalSymbol {
-    juce::String name;        /**< Display name of the symbol */
-    juce::String symbol;      /**< Unicode representation of the symbol */
-    bool isNote;             /**< True for notes, false for rests */
-};
-
-/**
- * @struct NotePattern
- * @brief Represents a rhythmic pattern with timing information
- */
-struct NotePattern
-{
-    juce::String name; /**< Name of the pattern */
-    juce::String symbols; /**< Combined symbols making up the pattern */
-    int denominator; /**< Time signature denominator this pattern is valid for */
-    int id; /**< Unique identifier for the pattern */
-    std::vector<float> timings; /**< Normalized positions (0.0 to 1.0) for each click within the beat */
-};
 
 /**
  * @class NotationManager
  * @brief Manages musical notation symbols and patterns
  * 
- * Provides static methods to access musical symbols and generate
- * appropriate rhythm patterns for different time signatures.
+ * Provides access to musical symbols and their combinations for different time signatures.
+ * Each pattern is associated with a Subdivision type for audio processing.
  */
-class NotationManager {
+class NotationManager 
+{
 public:
     /**
-     * @brief Gets all available musical symbols
-     * @return Vector of all supported musical symbols
+     * @brief Get the pattern list for a given time signature denominator
+     * @param denominator Time signature denominator (1, 2, 4, or 8)
+     * @return List of pairs containing the display string and corresponding Subdivision ID
      */
-    static const std::vector<MusicalSymbol>& getAllSymbols();
+    static std::vector<std::pair<juce::String, int>> getPatternsForDenominator(int denominator);
+
+private:
+    /**
+     * @brief Get Unicode symbol for whole note
+     * @return String containing the symbol
+     */
+    static const juce::String getWholeNote() 
+    { 
+        return juce::CharPointer_UTF8("\xF0\x9D\x85\x9C"); 
+    }
 
     /**
-     * @brief Gets patterns valid for a specific time signature denominator
-     * @param denominator Time signature denominator (1, 2, 4, or 8)
-     * @return Vector of valid patterns for the given denominator
+     * @brief Get Unicode symbol for half note
+     * @return String containing the symbol
      */
-    static std::vector<NotePattern> getPatternsForDenominator(int denominator);
+    static const juce::String getHalfNote() 
+    { 
+        return juce::CharPointer_UTF8("\xF0\x9D\x85\x9D"); 
+    }
+
+    /**
+     * @brief Get Unicode symbol for quarter note
+     * @return String containing the symbol
+     */
+    static const juce::String getQuarterNote() 
+    { 
+        return juce::String::fromUTF8("\u2669"); 
+    }
+
+    /**
+     * @brief Get Unicode symbol for eighth note
+     * @return String containing the symbol
+     */
+    static const juce::String getEighthNote() 
+    { 
+        return juce::String::fromUTF8("\u266A"); 
+    }
+
+    /**
+     * @brief Get Unicode symbol for beamed eighth notes
+     * @return String containing the symbol
+     */
+    static const juce::String getTwoEighthNotes() 
+    { 
+        return juce::String::fromUTF8("\u266B"); 
+    }
+
+    /**
+     * @brief Get Unicode symbol for sixteenth notes
+     * @return String containing the symbol
+     */
+    static const juce::String getSixteenthNotes() 
+    { 
+        return juce::String::fromUTF8("\u266C"); 
+    }
 };

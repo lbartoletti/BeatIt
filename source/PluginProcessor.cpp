@@ -1,5 +1,6 @@
 ﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "NotationManager.h"
 #include <map>
 
 namespace
@@ -31,18 +32,18 @@ namespace
 // Constructor and Destructor
 //==============================================================================
 MetronomeAudioProcessor::MetronomeAudioProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
     initializeParameters();
     initializeAudioState();
     initializeSoundMaps();
-    mutedBeats.resize (getBeatsPerBar(), false);
+    mutedBeats.resize(static_cast<size_t>(getBeatsPerBar()), false);
 }
 
 MetronomeAudioProcessor::~MetronomeAudioProcessor()
 {
-    state->removeParameterListener ("firstBeatSound", this);
-    state->removeParameterListener ("otherBeatsSound", this);
+    state->removeParameterListener("firstBeatSound", this);
+    state->removeParameterListener("otherBeatsSound", this);
 }
 
 //==============================================================================
@@ -51,68 +52,55 @@ MetronomeAudioProcessor::~MetronomeAudioProcessor()
 void MetronomeAudioProcessor::initializeParameters()
 {
     // Create parameter layout
-    state = std::make_unique<juce::AudioProcessorValueTreeState> (*this, nullptr, "Parameters", juce::AudioProcessorValueTreeState::ParameterLayout {
-                                                                                                    std::make_unique<juce::AudioParameterInt> ("bpm", "BPM", static_cast<int> (MIN_BPM), static_cast<int> (MAX_BPM), static_cast<int> (DEFAULT_BPM)),
+    state = std::make_unique<juce::AudioProcessorValueTreeState>(*this, nullptr, "Parameters",
+        juce::AudioProcessorValueTreeState::ParameterLayout{
+            std::make_unique<juce::AudioParameterInt>("bpm", "BPM",
+                static_cast<int>(MIN_BPM),
+                static_cast<int>(MAX_BPM),
+                static_cast<int>(DEFAULT_BPM)),
 
-                                                                                                    std::make_unique<juce::AudioParameterBool> ("play", "Play", false),
+            std::make_unique<juce::AudioParameterBool>("play", "Play", false),
 
-                                                                                                    std::make_unique<juce::AudioParameterChoice> ("beatsPerBar", "Beats Per Bar", juce::StringArray { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16" }, 3),
+            std::make_unique<juce::AudioParameterChoice>("beatsPerBar", "Beats Per Bar",
+                juce::StringArray{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"},
+                3),
 
-                                                                                                    std::make_unique<juce::AudioParameterChoice> ("beatDenominator", "Beat Denominator", juce::StringArray { "1", "2", "4", "8" }, 2),
+            std::make_unique<juce::AudioParameterChoice>("beatDenominator", "Beat Denominator",
+                juce::StringArray{"1", "2", "4", "8"},
+                2),
 
-                                                                                                    std::make_unique<juce::AudioParameterChoice> ("firstBeatSound", "First Beat Sound", juce::StringArray { "High Click", "Low Click", "Mute" }, 0),
+            std::make_unique<juce::AudioParameterChoice>("firstBeatSound", "First Beat Sound",
+                juce::StringArray{"High Click", "Low Click", "Mute"},
+                0),
 
-                                                                                                    std::make_unique<juce::AudioParameterChoice> ("otherBeatsSound", "Other Beats Sound", juce::StringArray { "High Click", "Low Click", "Mute" }, 1),
+            std::make_unique<juce::AudioParameterChoice>("otherBeatsSound", "Other Beats Sound",
+                juce::StringArray{"High Click", "Low Click", "Mute"},
+                1),
 
-                                                                                                    std::make_unique<juce::AudioParameterChoice> ("subdivision", "Beat Subdivision", juce::StringArray { "Quarter Note", "Two Eighths", "Eighth Triplets", "Four Sixteenths", "Eighth + Two 16ths", "Two 16ths + Eighth" }, 0),
-                                                                                                });
+            std::make_unique<juce::AudioParameterChoice>("subdivision", "Beat Subdivision",
+                juce::StringArray{
+                    "No Subdivision",  // 0
+                    "Half",           // 1
+                    "Triplet",        // 2
+                    "Quarter",        // 3
+                    "HalfQuarter",    // 4
+                    "QuarterHalf"     // 5
+                }, 
+                0), // valeur par défaut
+        });
 
     // Get parameter pointers
-    bpmParameter = state->getRawParameterValue ("bpm");
-    playParameter = state->getRawParameterValue ("play");
-    beatsPerBarParameter = state->getRawParameterValue ("beatsPerBar");
-    beatDenominatorParameter = state->getRawParameterValue ("beatDenominator");
-    firstBeatSoundParameter = state->getRawParameterValue ("firstBeatSound");
-    otherBeatsSoundParameter = state->getRawParameterValue ("otherBeatsSound");
-    subdivisionParameter = state->getRawParameterValue ("subdivision");
+    bpmParameter = state->getRawParameterValue("bpm");
+    playParameter = state->getRawParameterValue("play");
+    beatsPerBarParameter = state->getRawParameterValue("beatsPerBar");
+    beatDenominatorParameter = state->getRawParameterValue("beatDenominator");
+    firstBeatSoundParameter = state->getRawParameterValue("firstBeatSound");
+    otherBeatsSoundParameter = state->getRawParameterValue("otherBeatsSound");
+    subdivisionParameter = state->getRawParameterValue("subdivision");
 
     // Add parameter listeners
-    state->addParameterListener ("firstBeatSound", this);
-    state->addParameterListener ("otherBeatsSound", this);
-}
-
-void MetronomeAudioProcessor::updateSubdivisionTimings()
-{
-    currentSubdivisionTimings.clear();
-
-    const auto subdivType = static_cast<Subdivision> (static_cast<int> (subdivisionParameter->load()));
-
-    switch (subdivType)
-    {
-        case Subdivision::Quarter:
-            // No subdivision
-            break;
-
-        case Subdivision::TwoEighths:
-            currentSubdivisionTimings = { 0.5f };
-            break;
-
-        case Subdivision::ThreeEighths:
-            currentSubdivisionTimings = { 0.333f, 0.667f };
-            break;
-
-        case Subdivision::FourSixteenths:
-            currentSubdivisionTimings = { 0.25f, 0.5f, 0.75f };
-            break;
-
-        case Subdivision::EighthTwoSixteenths:
-            currentSubdivisionTimings = { 0.5f, 0.75f };
-            break;
-
-        case Subdivision::TwoSixteenthsEighth:
-            currentSubdivisionTimings = { 0.25f, 0.5f };
-            break;
-    }
+    state->addParameterListener("firstBeatSound", this);
+    state->addParameterListener("otherBeatsSound", this);
 }
 
 void MetronomeAudioProcessor::initializeAudioState()
@@ -137,7 +125,7 @@ void MetronomeAudioProcessor::initializeSoundMaps()
 //==============================================================================
 // Audio Processing
 //==============================================================================
-void MetronomeAudioProcessor::prepareToPlay (double sampleRate, [[maybe_unused]] int samplesPerBlock)
+void MetronomeAudioProcessor::prepareToPlay(double sampleRate, [[maybe_unused]] int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
     initializeSounds();
@@ -149,7 +137,7 @@ void MetronomeAudioProcessor::releaseResources()
     // Nothing to release
 }
 
-void MetronomeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
+void MetronomeAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     [[maybe_unused]] juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -157,18 +145,17 @@ void MetronomeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     // Clear output buffers
     for (auto i = 0; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+        buffer.clear(i, 0, buffer.getNumSamples());
 
     static float lastBpm = bpmParameter->load();
     float currentBpm = bpmParameter->load();
 
-    // If
-    if (lastBpm != currentBpm && getPlayState())
+    if (std::abs(lastBpm - currentBpm) > 0.01f && getPlayState())
     {
         // Stop sound
         clickPosition = -1; // Stop current click
-        soundPosition = 0; // Réinitialize position
-        currentBeat = 0; // Reinitialize beat
+        soundPosition = 0;  // Reset position
+        currentBeat = 0;    // Reset beat
 
         updateTimingInfo();
         lastBpm = currentBpm;
@@ -180,93 +167,103 @@ void MetronomeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     {
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
-            processSample (buffer, sample, totalNumOutputChannels);
+            processSample(buffer, sample, totalNumOutputChannels);
         }
     }
 }
 
-void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
+void MetronomeAudioProcessor::processSample(juce::AudioBuffer<float>& buffer,
     int sample,
     int totalNumOutputChannels)
 {
+    // Check if we should start a click
     bool startClick = false;
 
+    // Always click on beat start
     if (soundPosition == 0)
     {
         startClick = true;
     }
-    else
+    else if (getPlayState())
     {
-        const int subdivisionId = static_cast<int> (subdivisionParameter->load()) + 1;
-        const int denominator = getBeatDenominator();
-
-        auto patterns = NotationManager::getPatternsForDenominator (denominator);
-
-        for (const auto& pattern : patterns)
+        int subdivIndex = static_cast<int>(std::round(subdivisionParameter->load()));
+        auto subdivType = static_cast<Subdivision>(subdivIndex);
+        
+        startClick = processSubdivisionClick(subdivType, soundPosition);
+        
+        // Log when a subdivision click occurs
+        if (startClick)
         {
-            if (pattern.id == subdivisionId)
-            {
-                for (const auto& timing : pattern.timings)
-                {
-                    int clickPosition = static_cast<int> (timing * samplesPerBeat);
-                    if (soundPosition == clickPosition)
-                    {
-                        startClick = true;
-                        break;
-                    }
-                }
-                break;
-            }
+            DBG("Subdivision click at position: " << soundPosition << " for subdivision type: " << subdivIndex);
         }
     }
 
-    if (currentBeat >= 0 && currentBeat < getBeatsPerBar() && static_cast<size_t> (currentBeat) < mutedBeats.size() && !mutedBeats[currentBeat])
+    // Generate click if needed and not muted
+    if (currentBeat >= 0 && 
+        static_cast<size_t>(currentBeat) < mutedBeats.size() && 
+        !mutedBeats[static_cast<size_t>(currentBeat)])
     {
         if (startClick)
         {
+            // Start a new click
             clickPosition = 0;
+            DBG("Starting new click");
         }
 
+        // Continue playing current click if active
         if (clickPosition >= 0)
         {
-            juce::String soundType = (currentBeat == 0)
-                                         ? state->getParameter ("firstBeatSound")->getCurrentValueAsText()
-                                         : state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
-
-            if (soundTypeMap.find (soundType) != soundTypeMap.end())
+            juce::String soundType;
+            if (currentBeat == 0 && soundPosition == 0)
             {
-                const auto& clickType = soundTypeMap[soundType];
-                const auto& soundBuffer = getSoundBufferForClickType (clickType);
+                // First beat of bar
+                soundType = state->getParameter("firstBeatSound")->getCurrentValueAsText();
+                DBG("Using first beat sound: " << soundType);
+            }
+            else
+            {
+                // Subdivision or other beats
+                soundType = state->getParameter("otherBeatsSound")->getCurrentValueAsText();
+                DBG("Using other beat sound: " << soundType);
+            }
 
+            // Find and play the appropriate sound
+            if (auto it = soundTypeMap.find(soundType); it != soundTypeMap.end())
+            {
+                const auto& soundBuffer = getSoundBufferForClickType(it->second);
+                
                 if (clickPosition < soundBuffer.getNumSamples())
                 {
-                    float sampleValue = soundBuffer.getSample (0, clickPosition);
+                    float sampleValue = soundBuffer.getSample(0, clickPosition);
                     for (int channel = 0; channel < totalNumOutputChannels; ++channel)
                     {
-                        buffer.setSample (channel, sample, sampleValue);
+                        buffer.setSample(channel, sample, sampleValue);
                     }
                     clickPosition++;
                 }
                 else
                 {
                     clickPosition = -1;
+                    DBG("Click ended");
                 }
             }
         }
     }
 
+    // Update timing
     soundPosition++;
     if (soundPosition >= samplesPerBeat)
     {
         soundPosition = 0;
         currentBeat = (currentBeat + 1) % getBeatsPerBar();
+        DBG("New beat: " << currentBeat);
     }
 }
 
 //==============================================================================
 // Sound Generation
 //==============================================================================
-void MetronomeAudioProcessor::generateClickSound (juce::AudioBuffer<float>& buffer, ClickType type)
+void MetronomeAudioProcessor::generateClickSound(juce::AudioBuffer<float>& buffer, ClickType type)
 {
     const double sampleRate = getSampleRate();
 
@@ -286,46 +283,47 @@ void MetronomeAudioProcessor::generateClickSound (juce::AudioBuffer<float>& buff
             break;
         case ClickType::Mute:
             durationMs = 1.0f; // Minimal buffer for mute
+            frequency = 0.0f;
             break;
     }
 
-    const int numSamples = static_cast<int> ((durationMs / 1000.0f) * sampleRate);
-    buffer.setSize (1, numSamples);
+    const int numSamples = static_cast<int>((durationMs / 1000.0f) * sampleRate);
+    buffer.setSize(1, numSamples);
     buffer.clear();
 
     if (type != ClickType::Mute)
     {
-        generateClickWaveform (buffer, frequency, sampleRate, durationMs);
+        generateClickWaveform(buffer, frequency, sampleRate, durationMs);
     }
 }
 
-void MetronomeAudioProcessor::generateClickWaveform (juce::AudioBuffer<float>& buffer,
+void MetronomeAudioProcessor::generateClickWaveform(juce::AudioBuffer<float>& buffer,
     float frequency,
     double sampleRate,
     float durationMs)
 {
-    const auto attackTime = static_cast<float> (ClickParams::ATTACK_TIME_MS / 1000.0);
-    const auto decayTime = static_cast<float> ((durationMs / 1000.0) - attackTime);
-    const auto attackSamples = static_cast<float> (attackTime * sampleRate);
-    const auto decaySamples = static_cast<float> (decayTime * sampleRate);
+    const auto attackTime = static_cast<float>(ClickParams::ATTACK_TIME_MS / 1000.0);
+    const auto decayTime = static_cast<float>((durationMs / 1000.0) - attackTime);
+    const auto attackSamples = static_cast<float>(attackTime * sampleRate);
+    const auto decaySamples = static_cast<float>(decayTime * sampleRate);
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
-        const auto time = static_cast<float> (sample) / static_cast<float> (sampleRate);
-        auto signalValue = std::sin (2.0f * juce::MathConstants<float>::pi * frequency * time);
+        const auto time = static_cast<float>(sample) / static_cast<float>(sampleRate);
+        auto signalValue = std::sin(2.0f * juce::MathConstants<float>::pi * frequency * time);
 
         float envelope;
-        if (static_cast<float> (sample) < attackSamples)
-            envelope = static_cast<float> (sample) / attackSamples;
+        if (static_cast<float>(sample) < attackSamples)
+            envelope = static_cast<float>(sample) / attackSamples;
         else
-            envelope = 1.0f - ((static_cast<float> (sample) - attackSamples) / decaySamples);
+            envelope = 1.0f - ((static_cast<float>(sample) - attackSamples) / decaySamples);
 
-        envelope = std::max (0.0f, std::min (1.0f, envelope));
-        buffer.setSample (0, sample, signalValue * envelope * ClickParams::DEFAULT_AMPLITUDE);
+        envelope = std::max(0.0f, std::min(1.0f, envelope));
+        buffer.setSample(0, sample, signalValue * envelope * ClickParams::DEFAULT_AMPLITUDE);
     }
 }
 
-const juce::AudioBuffer<float>& MetronomeAudioProcessor::getSoundBufferForClickType (ClickType type) const
+const juce::AudioBuffer<float>& MetronomeAudioProcessor::getSoundBufferForClickType(ClickType type) const
 {
     switch (type)
     {
@@ -340,9 +338,9 @@ const juce::AudioBuffer<float>& MetronomeAudioProcessor::getSoundBufferForClickT
 
 void MetronomeAudioProcessor::initializeSounds()
 {
-    generateClickSound (highClickBuffer, ClickType::High);
-    generateClickSound (lowClickBuffer, ClickType::Low);
-    generateClickSound (muteBuffer, ClickType::Mute);
+    generateClickSound(highClickBuffer, ClickType::High);
+    generateClickSound(lowClickBuffer, ClickType::Low);
+    generateClickSound(muteBuffer, ClickType::Mute);
 }
 
 //==============================================================================
@@ -350,22 +348,22 @@ void MetronomeAudioProcessor::initializeSounds()
 //==============================================================================
 void MetronomeAudioProcessor::updateTimingInfo()
 {
-    int bpm = static_cast<int> (std::round (bpmParameter->load()));
+    int bpm = static_cast<int>(std::round(bpmParameter->load()));
     int denominator = getBeatDenominator();
 
-    double adjustedBpm = static_cast<double> (bpm * (4.0 / denominator));
+    double adjustedBpm = static_cast<double>(bpm * (4.0 / denominator));
     double beatsPerSecond = adjustedBpm / 60.0;
 
     if (currentSampleRate > 0 && beatsPerSecond > 0)
     {
-        samplesPerBeat = static_cast<int> (currentSampleRate / beatsPerSecond);
+        samplesPerBeat = static_cast<int>(currentSampleRate / beatsPerSecond);
     }
 }
 
 //==============================================================================
 // Parameter Management
 //==============================================================================
-void MetronomeAudioProcessor::parameterChanged (const juce::String& parameterID,
+void MetronomeAudioProcessor::parameterChanged(const juce::String& parameterID,
     [[maybe_unused]] float newValue)
 {
     if (parameterID == "bpm")
@@ -380,9 +378,9 @@ void MetronomeAudioProcessor::parameterChanged (const juce::String& parameterID,
 
         if (parameterID == "beatDenominator")
         {
-            if (auto* editor = dynamic_cast<MetronomeAudioProcessorEditor*> (getActiveEditor()))
+            if (auto* editor = dynamic_cast<MetronomeAudioProcessorEditor*>(getActiveEditor()))
             {
-                editor->updateSubdivisionComboBox (getBeatDenominator());
+                editor->updateSubdivisionComboBox(getBeatDenominator());
             }
         }
     }
@@ -399,7 +397,7 @@ bool MetronomeAudioProcessor::getPlayState() const
 void MetronomeAudioProcessor::togglePlayState()
 {
     bool newState = !getPlayState();
-    state->getParameter ("play")->setValueNotifyingHost (newState ? 1.0f : 0.0f);
+    state->getParameter("play")->setValueNotifyingHost(newState ? 1.0f : 0.0f);
 
     if (newState)
     {
@@ -411,15 +409,15 @@ void MetronomeAudioProcessor::togglePlayState()
 
 int MetronomeAudioProcessor::getBeatsPerBar() const
 {
-    return static_cast<int> (beatsPerBarParameter->load()) + 1;
+    return static_cast<int>(beatsPerBarParameter->load()) + 1;
 }
 
 int MetronomeAudioProcessor::getBeatDenominator() const
 {
-    return 1 << static_cast<int> (beatDenominatorParameter->load());
+    return 1 << static_cast<int>(beatDenominatorParameter->load());
 }
 
-void MetronomeAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void MetronomeAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     auto stateTree = state->copyState();
 
@@ -431,79 +429,80 @@ void MetronomeAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
             mutedBeatsStr += ",";
     }
 
-    stateTree.setProperty ("mutedBeats", mutedBeatsStr, nullptr);
+    stateTree.setProperty("mutedBeats", mutedBeatsStr, nullptr);
 
-    std::unique_ptr<juce::XmlElement> xml (stateTree.createXml());
-    copyXmlToBinary (*xml, destData);
+    std::unique_ptr<juce::XmlElement> xml(stateTree.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
-void MetronomeAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void MetronomeAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
 
     if (xmlState != nullptr)
     {
-        auto tree = juce::ValueTree::fromXml (*xmlState);
+        auto tree = juce::ValueTree::fromXml(*xmlState);
         if (tree.isValid())
         {
-            state->replaceState (tree);
+state->replaceState(tree);
 
-            juce::String mutedBeatsStr = tree.getProperty ("mutedBeats", "");
+            juce::String mutedBeatsStr = tree.getProperty("mutedBeats", "");
             if (mutedBeatsStr.isNotEmpty())
             {
-                auto tokens = juce::StringArray::fromTokens (mutedBeatsStr, ",", "");
+                auto tokens = juce::StringArray::fromTokens(mutedBeatsStr, ",", "");
                 mutedBeats.clear();
                 for (const auto& token : tokens)
                 {
-                    mutedBeats.push_back (token == "1");
+                    mutedBeats.push_back(token == "1");
                 }
                 updateMutedBeatsSize();
             }
         }
     }
 }
+
 //==============================================================================
 // Beats muted
 //==============================================================================
 void MetronomeAudioProcessor::initializeMutedBeats()
 {
     mutedBeats.clear();
-    mutedBeats.resize (getBeatsPerBar(), false);
+    mutedBeats.resize(static_cast<size_t>(getBeatsPerBar()), false);
 }
 
 void MetronomeAudioProcessor::updateMutedBeatsSize()
 {
-    const int newSize = getBeatsPerBar();
-    if (static_cast<int> (mutedBeats.size()) != newSize)
+    const auto newSize = static_cast<size_t>(getBeatsPerBar());
+    if (mutedBeats.size() != newSize)
     {
         std::vector<bool> oldStates = mutedBeats;
-        mutedBeats.resize (newSize, false);
+        mutedBeats.resize(newSize, false);
 
-        for (size_t i = 0; i < std::min (oldStates.size(), mutedBeats.size()); ++i)
+        for (size_t i = 0; i < std::min(oldStates.size(), mutedBeats.size()); ++i)
         {
             mutedBeats[i] = oldStates[i];
         }
     }
 }
 
-void MetronomeAudioProcessor::toggleBeatMute (int beatIndex)
+void MetronomeAudioProcessor::toggleBeatMute(int beatIndex)
 {
-    if (beatIndex >= 0 && beatIndex < static_cast<int> (mutedBeats.size()))
+    if (beatIndex >= 0 && static_cast<size_t>(beatIndex) < mutedBeats.size())
     {
-        mutedBeats[beatIndex] = !mutedBeats[beatIndex];
+        mutedBeats[static_cast<size_t>(beatIndex)] = !mutedBeats[static_cast<size_t>(beatIndex)];
     }
 }
 
-bool MetronomeAudioProcessor::isBeatMuted (int beatIndex) const
+bool MetronomeAudioProcessor::isBeatMuted(int beatIndex) const
 {
-    if (beatIndex >= 0 && beatIndex < static_cast<int> (mutedBeats.size()))
+    if (beatIndex >= 0 && static_cast<size_t>(beatIndex) < mutedBeats.size())
     {
-        return mutedBeats[beatIndex];
+        return mutedBeats[static_cast<size_t>(beatIndex)];
     }
     return false;
 }
 
-void MetronomeAudioProcessor::setMutedBeats (const std::vector<bool>& newMutedBeats)
+void MetronomeAudioProcessor::setMutedBeats(const std::vector<bool>& newMutedBeats)
 {
     mutedBeats = newMutedBeats;
     updateMutedBeatsSize();
@@ -519,15 +518,19 @@ bool MetronomeAudioProcessor::isMidiEffect() const { return false; }
 double MetronomeAudioProcessor::getTailLengthSeconds() const { return 0.0; }
 int MetronomeAudioProcessor::getNumPrograms() { return 1; }
 int MetronomeAudioProcessor::getCurrentProgram() { return 0; }
-void MetronomeAudioProcessor::setCurrentProgram ([[maybe_unused]] int index) {}
-const juce::String MetronomeAudioProcessor::getProgramName ([[maybe_unused]] int index) { return {}; }
-void MetronomeAudioProcessor::changeProgramName ([[maybe_unused]] int index, [[maybe_unused]] const juce::String& newName) {}
+void MetronomeAudioProcessor::setCurrentProgram([[maybe_unused]] int index) {}
+const juce::String MetronomeAudioProcessor::getProgramName([[maybe_unused]] int index) { return {}; }
+void MetronomeAudioProcessor::changeProgramName([[maybe_unused]] int index, [[maybe_unused]] const juce::String& newName) {}
 
 //==============================================================================
 // Editor
 //==============================================================================
 bool MetronomeAudioProcessor::hasEditor() const { return true; }
-juce::AudioProcessorEditor* MetronomeAudioProcessor::createEditor() { return new MetronomeAudioProcessorEditor (*this); }
+
+juce::AudioProcessorEditor* MetronomeAudioProcessor::createEditor()
+{
+    return new MetronomeAudioProcessorEditor(*this);
+}
 
 //==============================================================================
 // Plugin Creation
@@ -546,12 +549,64 @@ void MetronomeAudioProcessor::processTapTempo()
     double newBpm = tapTempoCalculator.calculateBPM();
 
     // Round to nearest integer BPM
-    newBpm = std::round (newBpm);
+    newBpm = std::round(newBpm);
 
     // Clamp BPM to valid range
-    newBpm = std::clamp (newBpm, MIN_BPM, MAX_BPM);
+    newBpm = std::clamp(newBpm, MIN_BPM, MAX_BPM);
 
     // Update BPM parameter
-    state->getParameter ("bpm")->setValueNotifyingHost (
-        state->getParameter ("bpm")->convertTo0to1 (newBpm));
+    float normalizedBpm = static_cast<float>(state->getParameter("bpm")->convertTo0to1(newBpm));
+    state->getParameter("bpm")->setValueNotifyingHost(normalizedBpm);
 }
+
+bool MetronomeAudioProcessor::processSubdivisionClick(Subdivision subdivision,
+    int currentPosition)
+{
+    if (currentPosition == 0)
+        return false;
+
+    switch (subdivision)
+    {
+        case Subdivision::NoSubdivision:
+            return false;
+
+        case Subdivision::Half: // Two notes per beat
+            return (currentPosition == samplesPerBeat / 2);
+
+        case Subdivision::Triplet: // Three notes per beat
+        {
+            int tripletInterval = samplesPerBeat / 3;
+            return (currentPosition == tripletInterval || 
+                   currentPosition == tripletInterval * 2);
+        }
+
+        case Subdivision::Quarter: // Four notes per beat
+        {
+            int quarterInterval = samplesPerBeat / 4;
+            return (currentPosition == quarterInterval || 
+                   currentPosition == quarterInterval * 2 ||
+                   currentPosition == quarterInterval * 3);
+        }
+
+        case Subdivision::HalfQuarter: // Eighth + two sixteenths
+        {
+            int halfPosition = samplesPerBeat / 2;
+            int quarterPosition = samplesPerBeat * 3 / 4;
+            return (currentPosition == halfPosition || 
+                   currentPosition == quarterPosition);
+        }
+
+        case Subdivision::QuarterHalf: // Two sixteenths + eighth
+        {
+            int quarterPosition = samplesPerBeat / 4;
+            int halfPosition = samplesPerBeat / 2;
+            return (currentPosition == quarterPosition || 
+                   currentPosition == halfPosition);
+        }
+
+        case Subdivision::Count:
+        default:
+            return false;
+    }
+}
+

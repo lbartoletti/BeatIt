@@ -26,159 +26,147 @@ class NotesComboBox : public juce::ComboBox
 {
 public:
     /**
-     * @brief Constructor - initializes the font and appearance
-     * 
-     * Loads the Leland font, sets up the initial font size, and configures
-     * the basic appearance of the ComboBox.
+     * @brief Constructor initializes the font and appearance
      */
     NotesComboBox()
     {
-        DBG ("NotesComboBox: Starting font loading...");
-
-        try
+        DBG("NotesComboBox: Starting font loading...");
+        
+        try 
         {
-            auto lelandTypeface = juce::Typeface::createSystemTypefaceFor (
+            auto lelandTypeface = juce::Typeface::createSystemTypefaceFor(
                 BinaryData::Leland_otf,
-                static_cast<size_t> (BinaryData::Leland_otfSize));
+                static_cast<size_t>(BinaryData::Leland_otfSize));
 
             if (lelandTypeface != nullptr)
             {
-                DBG ("Loading Leland font...");
-                musicFont = juce::Font (lelandTypeface);
-                musicFont.setHeight (24.0f);
-                DBG ("Leland font created successfully");
-                DBG (" - Style: " << lelandTypeface->getStyle());
+                DBG("Loading Leland font...");
+                // Use FontOptions instead of deprecated constructor
+                musicFont = juce::Font(juce::FontOptions()
+                                        .withHeight(24.0f)
+                                        .withTypeface(lelandTypeface));
+                DBG("Leland font created successfully");
             }
             else
             {
-                DBG ("Failed to load Leland font");
+                DBG("Failed to load Leland font");
                 return;
             }
-        } catch (const std::exception& e)
+        }
+        catch (const std::exception& e)
         {
-            DBG ("Exception during font creation: " << e.what());
+            DBG("Exception during font creation: " << e.what());
             return;
         }
 
-        // Configuration de l'apparence
-        setColour (juce::ComboBox::textColourId, juce::Colours::black);
-        setColour (juce::ComboBox::backgroundColourId, juce::Colours::white);
-        setColour (juce::ComboBox::outlineColourId, juce::Colours::grey);
-
-        DBG ("NotesComboBox: Initialization complete");
-
-        onChange = [this]() {
-            if (auto processor = dynamic_cast<MetronomeAudioProcessor*> (getProcessor()))
-            {
-                processor->updateSubdivisionFromPattern (getSelectedId());
-            }
-        };
+        // Configure appearance
+        setColour(juce::ComboBox::backgroundColourId, juce::Colours::white);
+        setColour(juce::ComboBox::textColourId, juce::Colours::black);
+        setColour(juce::ComboBox::outlineColourId, juce::Colours::grey);
     }
 
     /**
      * @brief Updates the available patterns based on time signature denominator
-     * 
-     * Clears the current items and populates the ComboBox with patterns
-     * appropriate for the given time signature denominator.
-     * 
-     * @param denominator The time signature denominator (1, 2, 4, or 8)
+     * @param denominator The time signature denominator
      */
     void updateForDenominator (int denominator)
     {
         clear();
         auto patterns = NotationManager::getPatternsForDenominator (denominator);
 
+        DBG ("Number of patterns for denominator " << denominator << ": " << patterns.size());
+
+        // Stocker la valeur actuelle avant de vider la combo box
+        int currentSubdivision = -1;
+        if (processorPtr)
+        {
+            float normalizedValue = processorPtr->getState().getParameter ("subdivision")->getValue();
+            currentSubdivision = static_cast<int> (normalizedValue * (static_cast<float> (static_cast<int> (Subdivision::Count) - 1)));
+        }
+
+        // Vérifier si la subdivision actuelle est valide pour le nouveau dénominateur
+        bool isCurrentSubdivisionValid = false;
         for (const auto& pattern : patterns)
         {
-            addItem (pattern.symbols + " " + pattern.name, pattern.id);
-            DBG ("Added pattern: " + pattern.name);
+            if (pattern.second == currentSubdivision)
+            {
+                isCurrentSubdivisionValid = true;
+                break;
+            }
+        }
+
+        // Ajouter les motifs disponibles
+        for (const auto& pattern : patterns)
+        {
+            addItem (pattern.first, pattern.second + 1);
+            DBG ("Adding pattern: " << pattern.first << " with value: " << pattern.second);
+        }
+
+        // Restaurer la sélection précédente si elle est valide, sinon sélectionner la première option
+        if (isCurrentSubdivisionValid)
+        {
+            setSelectedId (currentSubdivision + 1, juce::dontSendNotification);
+        }
+        else
+        {
+            setSelectedId (1, juce::dontSendNotification);
+            if (processorPtr)
+            {
+                processorPtr->getState().getParameter ("subdivision")->setValueNotifyingHost (0.0f);
+            }
+        }
+
+        if (processorPtr)
+        {
+            onChange = [this, patterns]() {
+                if (processorPtr)
+                {
+                    int selectedId = getSelectedId();
+                    DBG ("Selected ID: " << selectedId);
+
+                    if (selectedId > 0 && selectedId <= static_cast<int> (patterns.size()))
+                    {
+                        size_t index = static_cast<size_t> (selectedId - 1);
+                        int subdivisionValue = patterns[index].second;
+                        DBG ("Setting subdivision value to: " << subdivisionValue);
+
+                        float normalizedValue = static_cast<float> (subdivisionValue) / static_cast<float> (static_cast<int> (Subdivision::Count) - 1);
+
+                        processorPtr->getState().getParameter ("subdivision")->setValueNotifyingHost (normalizedValue);
+                    }
+                }
+            };
         }
     }
 
-    /**
-     * @brief Custom paint implementation for the ComboBox
-     * 
-     * Handles the rendering of the ComboBox with the musical font.
-     * Also includes debug logging for the first paint operation.
-     * 
-     * @param g Graphics context to paint into
-     */
-    void paint (juce::Graphics& g) override
-    {
-        ComboBox::paint (g);
 
+    /**
+     * @brief Sets the processor reference
+     * @param p Pointer to the audio processor
+     */
+    void setProcessor(MetronomeAudioProcessor* p)
+    {
+        processorPtr = p;
+    }
+
+    /**
+     * @brief Custom paint implementation
+     */
+    void paint(juce::Graphics& g) override
+    {
+        ComboBox::paint(g);
+        
         if (musicFont.getTypefaceName() != "<Sans-Serif>")
         {
-            g.setFont (musicFont);
-
-            static bool firstPaint = true;
-            if (firstPaint)
-            {
-                DBG ("Paint with custom font:");
-                DBG (" - Font height: " << g.getCurrentFont().getHeight());
-                DBG (" - Font name: " << g.getCurrentFont().getTypefaceName());
-                firstPaint = false;
-            }
+            g.setFont(musicFont);
         }
-    }
-
-    /**
-     * @brief Handles mouse events for font size adjustment
-     * 
-     * Implements Ctrl+Click to increase font size and Ctrl+Shift+Click
-     * to decrease font size. Updates are logged to debug output.
-     * 
-     * @param e The mouse event details
-     */
-    void mouseDown (const juce::MouseEvent& e) override
-    {
-        ComboBox::mouseDown (e);
-
-        if (e.mods.isCtrlDown() && musicFont.getTypefaceName() != "<Sans-Serif>")
-        {
-            float currentHeight = musicFont.getHeight();
-            if (e.mods.isShiftDown())
-            {
-                musicFont.setHeight (currentHeight - 2.0f);
-                DBG ("Font size decreased to: " << musicFont.getHeight());
-            }
-            else
-            {
-                musicFont.setHeight (currentHeight + 2.0f);
-                DBG ("Font size increased to: " << musicFont.getHeight());
-            }
-
-            repaint();
-        }
-    }
-
-    /**
-     * @brief Gets the current music font
-     * @return Reference to the current music font
-     */
-    const juce::Font& getMusicFont() const { return musicFont; }
-
-    /**
-     * @brief Sets a new font size
-     * @param newSize The new font size to set
-     */
-    void setFontSize (float newSize)
-    {
-        musicFont.setHeight (newSize);
-        repaint();
-    }
-    void setProcessor (MetronomeAudioProcessor* p)
-    {
-        processor = p;
     }
 
 private:
-    MetronomeAudioProcessor* processor = nullptr;
+    juce::Font musicFont;
+    MetronomeAudioProcessor* processorPtr = nullptr;  // Renamed to avoid shadowing
 
-    MetronomeAudioProcessor* getProcessor() const { return processor; }
-    juce::Font musicFont; /**< The font used for musical symbols */
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotesComboBox)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NotesComboBox)
 };
 
 /**

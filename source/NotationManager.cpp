@@ -1,76 +1,90 @@
 #include "NotationManager.h"
 
-/**
- * @file NotationManager.cpp
- * @brief Implementation of musical notation management utilities
- */
-
-const std::vector<MusicalSymbol>& NotationManager::getAllSymbols() {
-    static const std::vector<MusicalSymbol> allSymbols = {
-        // Notes
-        { "Whole Note", juce::CharPointer_UTF8("\xF0\x9D\x85\x9C"), true },
-        { "Half Note", juce::CharPointer_UTF8("\xF0\x9D\x85\x9D"), true },
-        { "Quarter Note", juce::String::fromUTF8("\u2669"), true },
-        { "Eighth Note", juce::String::fromUTF8("\u266A"), true },
-        { "Two Eighth Notes", juce::String::fromUTF8("\u266B"), true },
-        { "Sixteenth Notes", juce::String::fromUTF8("\u266C"), true },
-        
-        // Rests
-        { "Whole Rest", juce::CharPointer_UTF8("\xF0\x9D\x84\xBD"), false },
-        { "Half Rest", juce::CharPointer_UTF8("\xF0\x9D\x84\xBE"), false },
-        { "Quarter Rest", juce::CharPointer_UTF8("\xF0\x9D\x84\xBF"), false },
-        { "Eighth Rest", juce::CharPointer_UTF8("\xF0\x9D\x85\x80"), false },
-        { "Sixteenth Rest", juce::CharPointer_UTF8("\xF0\x9D\x85\x81"), false }
-    };
-    return allSymbols;
-}
-
-std::vector<NotePattern> NotationManager::getPatternsForDenominator (int denominator)
+std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenominator (int denominator)
 {
-    std::vector<NotePattern> patterns;
-    int id = 1;
-    const auto& symbols = getAllSymbols();
+    std::vector<std::pair<juce::String, int>> patterns;
 
     switch (denominator)
     {
         case 1: // x/1 patterns
             patterns = {
-                { "Whole", symbols[0].symbol, 1, id++, {} }, // Pas de subdivision
-                { "Two Half Notes", symbols[1].symbol + symbols[1].symbol, 1, id++, { 0.5f } },
-                { "Four Quarter Notes", std::string (4, symbols[2].symbol[0]).c_str(), 1, id++, { 0.25f, 0.5f, 0.75f } }
+                { getWholeNote() + " Whole Note",
+                    static_cast<int> (Subdivision::NoSubdivision) },
+                { getHalfNote() + " " + getHalfNote() + " Two Half Notes",
+                    static_cast<int> (Subdivision::Half) },
+                { getHalfNote() + " " + getHalfNote() + " " + getHalfNote() + " Triplet",
+                    static_cast<int> (Subdivision::Triplet) },
+                { getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " Four Quarter Notes",
+                    static_cast<int> (Subdivision::Quarter) },
+                { getHalfNote() + " " + getQuarterNote() + " " + getQuarterNote() + " Half + Two Quarter Notes",
+                    static_cast<int> (Subdivision::HalfQuarter) },
+                { getQuarterNote() + " " + getQuarterNote() + " " + getHalfNote() + " Two Quarter + Half Notes",
+                    static_cast<int> (Subdivision::QuarterHalf) }
             };
             break;
 
         case 2: // x/2 patterns
             patterns = {
-                { "Half Note", symbols[1].symbol, 2, id++, {} },
-                { "Two Quarter Notes", symbols[2].symbol + symbols[2].symbol, 2, id++, { 0.5f } },
-                { "Quarter Rest + Quarter", symbols[8].symbol + symbols[2].symbol, 2, id++, { 0.5f } },
-                { "Four Eighth Notes", std::string (2, symbols[4].symbol[0]).c_str(), 2, id++, { 0.25f, 0.5f, 0.75f } }
+                { getHalfNote() + " Half Note",
+                    static_cast<int> (Subdivision::NoSubdivision) },
+                { getQuarterNote() + " " + getQuarterNote() + " Two Quarter Notes",
+                    static_cast<int> (Subdivision::Half) },
+                { getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " Triplet",
+                    static_cast<int> (Subdivision::Triplet) },
+                { getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " Four Eighth Notes",
+                    static_cast<int> (Subdivision::Quarter) },
+                { getQuarterNote() + " " + getEighthNote() + " " + getEighthNote() + " Quarter + Two Eighth Notes",
+                    static_cast<int> (Subdivision::HalfQuarter) },
+                { getEighthNote() + " " + getEighthNote() + " " + getQuarterNote() + " Two Eighth + Quarter Notes",
+                    static_cast<int> (Subdivision::QuarterHalf) }
             };
             break;
 
         case 4: // x/4 patterns
             patterns = {
-                { "Quarter Note", symbols[2].symbol, 4, id++, {} },
-                { "Two Eighth Notes", symbols[4].symbol, 4, id++, { 0.5f } },
-                { "Three Eighth Notes", symbols[3].symbol + symbols[3].symbol + symbols[3].symbol, 4, id++, { 0.333f, 0.667f } },
-                { "Four Sixteenth Notes", symbols[5].symbol, 4, id++, { 0.25f, 0.5f, 0.75f } },
-                { "Eighth + Two Sixteenth", symbols[3].symbol + symbols[5].symbol, 4, id++, { 0.5f, 0.75f } },
-                { "Two Sixteenth + Eighth", symbols[5].symbol + symbols[3].symbol, 4, id++, { 0.25f, 0.5f } }
+                { getQuarterNote() + " Quarter Note",
+                    static_cast<int> (Subdivision::NoSubdivision) },
+                { getTwoEighthNotes() + " Two Eighth Notes",
+                    static_cast<int> (Subdivision::Half) },
+                { getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " Triplet",
+                    static_cast<int> (Subdivision::Triplet) },
+                { getSixteenthNotes() + " Four Sixteenth Notes",
+                    static_cast<int> (Subdivision::Quarter) },
+                { getEighthNote() + " " + getSixteenthNotes() + " Eighth + Two Sixteenth",
+                    static_cast<int> (Subdivision::HalfQuarter) },
+                { getSixteenthNotes() + " " + getEighthNote() + " Two Sixteenth + Eighth",
+                    static_cast<int> (Subdivision::QuarterHalf) }
             };
             break;
 
         case 8: // x/8 patterns
             patterns = {
-                { "Eighth Note", symbols[3].symbol, 8, id++, {} },
-                { "Two Sixteenth Notes", symbols[5].symbol, 8, id++, { 0.5f } },
-                { "Eighth Rest + Eighth", symbols[9].symbol + symbols[3].symbol, 8, id++, { 0.5f } },
-                { "Three Sixteenth Notes", symbols[5].symbol + symbols[3].symbol + symbols[3].symbol, 8, id++, { 0.333f, 0.667f } },
-                { "Four Sixteenth Notes", std::string (2, symbols[5].symbol[0]).c_str(), 8, id++, { 0.25f, 0.5f, 0.75f } }
+                { getEighthNote() + " Eighth Note",
+                    static_cast<int> (Subdivision::NoSubdivision) },
+                { getSixteenthNotes() + " Two Sixteenth Notes",
+                    static_cast<int> (Subdivision::Half) },
+                { getSixteenthNotes() + " " + getSixteenthNotes() + " " + getSixteenthNotes() + " Triplet",
+                    static_cast<int> (Subdivision::Triplet) },
+                { getSixteenthNotes() + " " + getSixteenthNotes() + " Four 32nd Notes",
+                    static_cast<int> (Subdivision::Quarter) },
+                { getSixteenthNotes() + " " + getTwoEighthNotes() + " Sixteenth + Two 32nd Notes",
+                    static_cast<int> (Subdivision::HalfQuarter) },
+                { getTwoEighthNotes() + " " + getSixteenthNotes() + " Two 32nd + Sixteenth Notes",
+                    static_cast<int> (Subdivision::QuarterHalf) }
             };
             break;
+
+        default:
+            jassertfalse; // Dénominateur non supporté
+            break;
+    }
+
+    // Vérifier que les patterns sont correctement associés aux subdivisions
+    for (const auto& pattern : patterns)
+    {
+        jassert (pattern.second >= 0 && pattern.second < static_cast<int> (Subdivision::Count));
     }
 
     return patterns;
 }
+

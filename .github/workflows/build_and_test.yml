@@ -297,9 +297,8 @@ jobs:
         run: |
           case "${{ matrix.name }}" in
             "Windows")
-              cd unified_artifacts/${{ matrix.name }}
-              7z a -tzip "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip" ./*
-              cd ../../
+              7z a -tzip "${{ env.ARTIFACTS_PATH }}/${{ env.ARTIFACT_NAME }}.zip" unified_artifacts/${{ matrix.name }}/*
+              
               iscc "packaging\installer.iss"
               mv "packaging/Output/${{ env.ARTIFACT_NAME }}.exe" "${{ env.ARTIFACTS_PATH }}/"
               ;;

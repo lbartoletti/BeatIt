@@ -197,37 +197,26 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
     }
     else
     {
-        const auto subdivType = static_cast<Subdivision> (static_cast<int> (subdivisionParameter->load()));
-        switch (subdivType)
+        const int subdivisionId = static_cast<int> (subdivisionParameter->load()) + 1;
+        const int denominator = getBeatDenominator();
+
+        auto patterns = NotationManager::getPatternsForDenominator (denominator);
+
+        for (const auto& pattern : patterns)
         {
-            case Subdivision::Quarter:
-                // No subdivision
+            if (pattern.id == subdivisionId)
+            {
+                for (const auto& timing : pattern.timings)
+                {
+                    int clickPosition = static_cast<int> (timing * samplesPerBeat);
+                    if (soundPosition == clickPosition)
+                    {
+                        startClick = true;
+                        break;
+                    }
+                }
                 break;
-
-            case Subdivision::TwoEighths:
-                if (soundPosition == samplesPerBeat / 2)
-                    startClick = true;
-                break;
-
-            case Subdivision::ThreeEighths:
-                if (soundPosition == samplesPerBeat / 3 || soundPosition == (2 * samplesPerBeat) / 3)
-                    startClick = true;
-                break;
-
-            case Subdivision::FourSixteenths:
-                if (soundPosition == samplesPerBeat / 4 || soundPosition == samplesPerBeat / 2 || soundPosition == (3 * samplesPerBeat) / 4)
-                    startClick = true;
-                break;
-
-            case Subdivision::EighthTwoSixteenths:
-                if (soundPosition == samplesPerBeat / 2 || soundPosition == (3 * samplesPerBeat) / 4)
-                    startClick = true;
-                break;
-
-            case Subdivision::TwoSixteenthsEighth:
-                if (soundPosition == samplesPerBeat / 4 || soundPosition == samplesPerBeat / 2)
-                    startClick = true;
-                break;
+            }
         }
     }
 
@@ -240,7 +229,9 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
 
         if (clickPosition >= 0)
         {
-            juce::String soundType = (currentBeat == 0) ? state->getParameter ("firstBeatSound")->getCurrentValueAsText() : state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
+            juce::String soundType = (currentBeat == 0)
+                                         ? state->getParameter ("firstBeatSound")->getCurrentValueAsText()
+                                         : state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
 
             if (soundTypeMap.find (soundType) != soundTypeMap.end())
             {
@@ -386,6 +377,14 @@ void MetronomeAudioProcessor::parameterChanged (const juce::String& parameterID,
         updateTimingInfo();
         updateMutedBeatsSize();
         currentBeat = 0;
+
+        if (parameterID == "beatDenominator")
+        {
+            if (auto* editor = dynamic_cast<MetronomeAudioProcessorEditor*> (getActiveEditor()))
+            {
+                editor->updateSubdivisionComboBox (getBeatDenominator());
+            }
+        }
     }
 }
 

@@ -92,6 +92,8 @@ MetronomeAudioProcessorEditor::MetronomeAudioProcessorEditor (MetronomeAudioProc
 
     // Subdivision setup
     addAndMakeVisible (subdivisionComboBox);
+    subdivisionComboBox.setProcessor (&audioProcessor);
+    subdivisionComboBox.updateForDenominator (audioProcessor.getBeatDenominator());
 
 
     // Set up attachments
@@ -116,13 +118,17 @@ MetronomeAudioProcessorEditor::MetronomeAudioProcessorEditor (MetronomeAudioProc
     subdivisionAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getState(), "subdivision", subdivisionComboBox);
 
+    audioProcessor.getState().addParameterListener ("beatDenominator", this);
+
     // Set background color
     setColour (juce::DocumentWindow::backgroundColourId, Colors::background);
 
     startTimer (50); // Update UI 20 times per second
 }
 
-MetronomeAudioProcessorEditor::~MetronomeAudioProcessorEditor() = default;
+MetronomeAudioProcessorEditor::~MetronomeAudioProcessorEditor() {
+    audioProcessor.getState().removeParameterListener ("beatDenominator", this);
+}
 
 //==============================================================================
 void MetronomeAudioProcessorEditor::paint (juce::Graphics& g)
@@ -266,6 +272,16 @@ void MetronomeAudioProcessorEditor::sliderValueChanged (juce::Slider* slider)
     {
         int newValue = static_cast<int> (std::round (slider->getValue()));
         slider->setValue (newValue, juce::sendNotificationAsync);
+    }
+}
+
+void MetronomeAudioProcessorEditor::parameterChanged (const juce::String& parameterID, float /*newValue*/)
+{
+    if (parameterID == "beatDenominator")
+    {
+        juce::MessageManager::callAsync ([this]() {
+            subdivisionComboBox.updateForDenominator (audioProcessor.getBeatDenominator());
+        });
     }
 }
 

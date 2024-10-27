@@ -400,6 +400,21 @@ public:
      * @return Vector of normalized positions (0.0 to 1.0) for subdivisions within a beat
      */
     std::vector<float> getSubdivisionTimings() const;
+
+    /**
+     * @brief Updates the subdivision parameter based on selected pattern
+     * @param patternId ID of the selected pattern
+     */
+    void updateSubdivisionFromPattern (int patternId)
+    {
+        if (auto* param = state->getParameter ("subdivision"))
+        {
+            const float normalizedValue = param->convertTo0to1 (static_cast<float> (patternId - 1));
+            param->setValueNotifyingHost (normalizedValue);
+
+            updateSubdivisionTimings();
+        }
+    }
     ///@}
 
     //==============================================================================

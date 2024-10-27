@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinaryData.h"
+#include "NotationManager.h"
 #include "PluginProcessor.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -11,9 +12,25 @@
  * @author Lituus (Loïc Bartoletti)
  * @version 0.0.1
  */
+
+/**
+ * @class NotesComboBox
+ * @brief Custom ComboBox for displaying musical notation patterns
+ * 
+ * A specialized ComboBox that displays rhythmic patterns using musical symbols
+ * rendered with the Leland font. The patterns shown depend on the current time
+ * signature denominator. Supports dynamic font size adjustment and includes
+ * debug logging.
+ */
 class NotesComboBox : public juce::ComboBox
 {
 public:
+    /**
+     * @brief Constructor - initializes the font and appearance
+     * 
+     * Loads the Leland font, sets up the initial font size, and configures
+     * the basic appearance of the ComboBox.
+     */
     NotesComboBox()
     {
         DBG ("NotesComboBox: Starting font loading...");
@@ -31,18 +48,6 @@ public:
                 musicFont.setHeight (24.0f);
                 DBG ("Leland font created successfully");
                 DBG (" - Style: " << lelandTypeface->getStyle());
-
-                // Test différents codes pour la ronde et la blanche
-                DBG ("Testing whole and half note codes...");
-                // Test different Unicode ranges for whole notes
-                juce::String test1 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9C"); // U+1D15C
-                juce::String test2 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9D"); // U+1D15D
-                juce::String test3 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9E"); // U+1D15E
-                DBG ("Test codes created");
-
-                addItem ("Test1 " + test1 + " Whole Note 1", 98);
-                addItem ("Test2 " + test2 + " Whole Note 2", 99);
-                addItem ("Test3 " + test3 + " Half Note", 100);
             }
             else
             {
@@ -55,50 +60,49 @@ public:
             return;
         }
 
-        // Symboles de base
-        const juce::String quarterNote = juce::String::fromUTF8 ("\u2669"); // Noire (♩)
-        const juce::String eighthNote = juce::String::fromUTF8 ("\u266A"); // Croche (♪)
-        const juce::String twoEighths = juce::String::fromUTF8 ("\u266B"); // Deux croches liées (♫)
-        const juce::String sixteenths = juce::String::fromUTF8 ("\u266C"); // Doubles-croches liées (♬)
-
-        // Soupirs
-        const juce::String wholeRest = juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBD"); // Pause
-        const juce::String halfRest = juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBE"); // Demi-pause
-        const juce::String quarterRest = juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBF"); // Soupir
-        const juce::String eighthRest = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x80"); // Demi-soupir
-        const juce::String sixteenthRest = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x81"); // Quart de soupir
-
-        int id = 1;
-
-        // Tests alternatifs pour ronde et blanche
-        // SMuFL range
-        const juce::String wholeNote1 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9C"); // U+1D15C MUSICAL SYMBOL WHOLE NOTE
-        const juce::String wholeNote2 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9D"); // U+1D15D MUSICAL SYMBOL HALF NOTE
-        const juce::String wholeNote3 = juce::CharPointer_UTF8 ("\xF0\x9D\x85\x9E"); // U+1D15E MUSICAL SYMBOL QUARTER NOTE
-
-        addItem (wholeNote1 + juce::String (" Whole Note V1"), id++);
-        addItem (wholeRest + juce::String (" Whole Rest"), id++);
-        addItem (wholeNote2 + juce::String (" Half Note V1"), id++);
-        addItem (halfRest + juce::String (" Half Rest"), id++);
-        addItem (wholeNote3 + juce::String (" Half Note V2"), id++);
-        addItem (halfRest + juce::String (" Half Rest V2"), id++);
-
-        // Autres subdivisions avec les symboles qui fonctionnent
-        addItem (quarterNote + juce::String (" 1/4"), id++);
-        addItem (quarterRest + juce::String (" Soupir"), id++);
-        addItem (eighthNote + juce::String (" 1/8"), id++);
-        addItem (eighthRest + juce::String (" Demi-soupir"), id++);
-        addItem (sixteenths + juce::String (" 1/16"), id++);
-        addItem (sixteenthRest + juce::String (" Quart de soupir"), id++);
-
         // Configuration de l'apparence
         setColour (juce::ComboBox::textColourId, juce::Colours::black);
         setColour (juce::ComboBox::backgroundColourId, juce::Colours::white);
         setColour (juce::ComboBox::outlineColourId, juce::Colours::grey);
 
-        DBG ("NotesComboBox: Initialization complete with whole/half note tests");
+        DBG ("NotesComboBox: Initialization complete");
+
+        onChange = [this]() {
+            if (auto processor = dynamic_cast<MetronomeAudioProcessor*> (getProcessor()))
+            {
+                processor->updateSubdivisionFromPattern (getSelectedId());
+            }
+        };
     }
 
+    /**
+     * @brief Updates the available patterns based on time signature denominator
+     * 
+     * Clears the current items and populates the ComboBox with patterns
+     * appropriate for the given time signature denominator.
+     * 
+     * @param denominator The time signature denominator (1, 2, 4, or 8)
+     */
+    void updateForDenominator (int denominator)
+    {
+        clear();
+        auto patterns = NotationManager::getPatternsForDenominator (denominator);
+
+        for (const auto& pattern : patterns)
+        {
+            addItem (pattern.symbols + " " + pattern.name, pattern.id);
+            DBG ("Added pattern: " + pattern.name);
+        }
+    }
+
+    /**
+     * @brief Custom paint implementation for the ComboBox
+     * 
+     * Handles the rendering of the ComboBox with the musical font.
+     * Also includes debug logging for the first paint operation.
+     * 
+     * @param g Graphics context to paint into
+     */
     void paint (juce::Graphics& g) override
     {
         ComboBox::paint (g);
@@ -110,7 +114,7 @@ public:
             static bool firstPaint = true;
             if (firstPaint)
             {
-                DBG ("Paint with Leland font:");
+                DBG ("Paint with custom font:");
                 DBG (" - Font height: " << g.getCurrentFont().getHeight());
                 DBG (" - Font name: " << g.getCurrentFont().getTypefaceName());
                 firstPaint = false;
@@ -118,6 +122,14 @@ public:
         }
     }
 
+    /**
+     * @brief Handles mouse events for font size adjustment
+     * 
+     * Implements Ctrl+Click to increase font size and Ctrl+Shift+Click
+     * to decrease font size. Updates are logged to debug output.
+     * 
+     * @param e The mouse event details
+     */
     void mouseDown (const juce::MouseEvent& e) override
     {
         ComboBox::mouseDown (e);
@@ -126,17 +138,47 @@ public:
         {
             float currentHeight = musicFont.getHeight();
             if (e.mods.isShiftDown())
+            {
                 musicFont.setHeight (currentHeight - 2.0f);
+                DBG ("Font size decreased to: " << musicFont.getHeight());
+            }
             else
+            {
                 musicFont.setHeight (currentHeight + 2.0f);
+                DBG ("Font size increased to: " << musicFont.getHeight());
+            }
 
-            DBG ("Font size adjusted to: " << musicFont.getHeight());
             repaint();
         }
     }
 
+    /**
+     * @brief Gets the current music font
+     * @return Reference to the current music font
+     */
+    const juce::Font& getMusicFont() const { return musicFont; }
+
+    /**
+     * @brief Sets a new font size
+     * @param newSize The new font size to set
+     */
+    void setFontSize (float newSize)
+    {
+        musicFont.setHeight (newSize);
+        repaint();
+    }
+    void setProcessor (MetronomeAudioProcessor* p)
+    {
+        processor = p;
+    }
+
 private:
-    juce::Font musicFont;
+    MetronomeAudioProcessor* processor = nullptr;
+
+    MetronomeAudioProcessor* getProcessor() const { return processor; }
+    juce::Font musicFont; /**< The font used for musical symbols */
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotesComboBox)
 };
 
 /**
@@ -159,7 +201,8 @@ private:
 class MetronomeAudioProcessorEditor : public juce::AudioProcessorEditor,
                                       public juce::Timer,
                                       public juce::Button::Listener,
-                                      public juce::Slider::Listener
+                                      public juce::Slider::Listener,
+                                      public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -232,6 +275,19 @@ public:
      */
     void sliderValueChanged (juce::Slider* slider) override;
     ///@}
+
+    void updateSubdivisionComboBox (int denominator)
+    {
+        DBG ("prout" << denominator);
+        subdivisionComboBox.updateForDenominator (denominator);
+    }
+
+    /**
+     * @brief Handles parameter changes from the processor
+     * @param parameterID The ID of the changed parameter
+     * @param newValue The new value
+     */
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
 
 private:
     //==============================================================================

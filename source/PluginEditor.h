@@ -28,41 +28,50 @@ public:
     /**
      * @brief Constructor initializes the font and appearance
      */
+    // Dans NotesComboBox.h:
+
     NotesComboBox()
     {
-        DBG("NotesComboBox: Starting font loading...");
-        
-        try 
-        {
-            auto lelandTypeface = juce::Typeface::createSystemTypefaceFor(
-                BinaryData::Leland_otf,
-                static_cast<size_t>(BinaryData::Leland_otfSize));
+        DBG ("NotesComboBox: Starting font loading...");
 
-            if (lelandTypeface != nullptr)
+        try
+        {
+            if (BinaryData::Leland_otfSize == 0)
             {
-                DBG("Loading Leland font...");
-                // Use FontOptions instead of deprecated constructor
-                musicFont = juce::Font(juce::FontOptions()
-                                        .withHeight(24.0f)
-                                        .withTypeface(lelandTypeface));
-                DBG("Leland font created successfully");
-            }
-            else
-            {
-                DBG("Failed to load Leland font");
+                DBG ("Error: Font data size is 0");
+                jassertfalse;
                 return;
             }
-        }
-        catch (const std::exception& e)
+
+            DBG ("Loading Leland font...");
+            DBG ("Font data size: " << BinaryData::Leland_otfSize);
+
+            auto lelandTypeface = juce::Typeface::createSystemTypefaceFor (
+                BinaryData::Leland_otf,
+                static_cast<size_t> (BinaryData::Leland_otfSize));
+
+            if (lelandTypeface == nullptr)
+            {
+                DBG ("Failed to create typeface from binary data");
+                jassertfalse;
+                return;
+            }
+
+            musicFont = juce::Font (lelandTypeface);
+            musicFont.setHeight (24.0f);
+
+            DBG ("Leland font created successfully");
+        } catch (const std::exception& e)
         {
-            DBG("Exception during font creation: " << e.what());
+            DBG ("Exception during font creation: " << e.what());
+            jassertfalse;
             return;
         }
 
         // Configure appearance
-        setColour(juce::ComboBox::backgroundColourId, juce::Colours::white);
-        setColour(juce::ComboBox::textColourId, juce::Colours::black);
-        setColour(juce::ComboBox::outlineColourId, juce::Colours::grey);
+        setColour (juce::ComboBox::backgroundColourId, juce::Colours::white);
+        setColour (juce::ComboBox::textColourId, juce::Colours::black);
+        setColour (juce::ComboBox::outlineColourId, juce::Colours::grey);
     }
 
     /**

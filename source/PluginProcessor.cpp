@@ -184,68 +184,31 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
     int sample,
     int totalNumOutputChannels)
 {
-    // Check if we should start a click
     bool startClick = false;
 
-    int subdivIndex = static_cast<int> (std::round (subdivisionParameter->load()));
-    auto subdivType = static_cast<Subdivision> (subdivIndex);
-
-    // Determine if we should play the main beat
-    bool shouldPlayMainBeat = true;
     if (soundPosition == 0)
-    {
-        switch (subdivType)
-        {
-            case Subdivision::RestHalf:
-            case Subdivision::RestHalfHalfTriplet:
-            case Subdivision::RestHalfRestTriplet:
-            case Subdivision::RestEighthPattern:
-                shouldPlayMainBeat = false;
-                break;
-            default:
-                shouldPlayMainBeat = true;
-                break;
-        }
-    }
-
-    // Start click either on main beat (if allowed) or subdivision
-    if (soundPosition == 0 && shouldPlayMainBeat)
     {
         startClick = true;
     }
     else if (getPlayState())
     {
+        const auto subdivType = static_cast<Subdivision> (static_cast<int> (subdivisionParameter->load()));
         startClick = processSubdivisionClick (subdivType, soundPosition);
     }
 
     // Generate click if needed and not muted
-    if (currentBeat >= 0 && static_cast<size_t> (currentBeat) < mutedBeats.size() && !mutedBeats[static_cast<size_t> (currentBeat)])
+    if (currentBeat >= 0 && currentBeat < getBeatsPerBar() && static_cast<size_t> (currentBeat) < mutedBeats.size() && !mutedBeats[currentBeat])
     {
         if (startClick)
         {
-            // Start a new click
             clickPosition = 0;
-            DBG ("Starting new click");
         }
 
-        // Continue playing current click if active
         if (clickPosition >= 0)
         {
-            juce::String soundType;
-            if (currentBeat == 0 && soundPosition == 0 && shouldPlayMainBeat)
-            {
-                // First beat of bar
-                soundType = state->getParameter ("firstBeatSound")->getCurrentValueAsText();
-                DBG ("Using first beat sound: " << soundType);
-            }
-            else
-            {
-                // Subdivision or other beats
-                soundType = state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
-                DBG ("Using other beat sound: " << soundType);
-            }
+            // Select sound based on which beat we're on, regardless of subdivision
+            juce::String soundType = (currentBeat == 0) ? state->getParameter ("firstBeatSound")->getCurrentValueAsText() : state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
 
-            // Find and play the appropriate sound
             if (auto it = soundTypeMap.find (soundType); it != soundTypeMap.end())
             {
                 const auto& soundBuffer = getSoundBufferForClickType (it->second);
@@ -262,19 +225,16 @@ void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
                 else
                 {
                     clickPosition = -1;
-                    DBG ("Click ended");
                 }
             }
         }
     }
 
-    // Update timing
     soundPosition++;
     if (soundPosition >= samplesPerBeat)
     {
         soundPosition = 0;
         currentBeat = (currentBeat + 1) % getBeatsPerBar();
-        DBG ("New beat: " << currentBeat);
     }
 }
 

@@ -1,7 +1,7 @@
 # BeatIt - Multi Platform Metronome Plugin
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[![BeatIt Screenshot](assets/images/BeatIt.png)]
+[![BeatIt Screenshot](docs/images/BeatIt.png)]
 
 ## Overview
 
@@ -16,13 +16,25 @@ It offers precise timing, extensive customization options, and an intuitive inte
   - Visual feedback for active beats
 
 - **Advanced Time Signature Support**:
-  - Customizable time signatures
-  - Support for complex meters
+  - Customizable time signatures (1-16 beats per bar)
+  - Support for complex meters (1, 2, 4, 8 denominators)
+  - Extensive subdivision patterns including:
+    - Simple divisions (half, quarter notes)
+    - Triplet patterns
+    - Rest patterns
+    - Complex combinations (e.g., eighth + two sixteenths)
   - Individual beat muting capabilities
 
 - **Sound Options**:
   - Distinct sound selection for first and subsequent beats
-  - High-quality click sounds (1500Hz and 800Hz options)
+  - High-quality click sounds:
+    - High Click: 1500Hz, 30ms duration
+    - Low Click: 800Hz, 20ms duration
+    - Mute option for silent beats
+  - Rest handling options:
+    - Same as Beat: Maintains beat sound pattern
+    - Rest "Sound": Low frequency (200Hz) for rest identification
+    - Mute: Silent rests
   - Muting capability for any beat in the pattern
 
 - **Visual Feedback**:
@@ -90,13 +102,14 @@ Using CMake:
    - Click the tap tempo button rhythmically
 
 2. **Time Signature Configuration**:
-   - Select beats per bar (1-32)
-   - Choose beat denominator (1, 2, 4, 8, 16)
-   - Choose time signature (quarter, triplet, galop,etc)
+   - Select beats per bar (1-16)
+   - Choose beat denominator (1, 2, 4, 8)
+   - Select subdivision pattern (simple, triplet, or with rests)
 
 3. **Sound Customization**:
-   - First beat sound: Select from High/Low click
-   - Other beats sound: Independent selection
+   - First beat sound: Select from High/Low click or Mute
+   - Other beats sound: Independent High/Low/Mute selection
+   - Rest sound: Choose between Same as Beat, Rest Sound, or Mute
    - Mute specific beats by clicking their visualizers
 
 ### Advanced Features
@@ -104,12 +117,11 @@ Using CMake:
 1. **Beat Pattern Customization**:
    - Click on beat visualizers to mute/unmute
    - Create complex patterns by selective muting
+   - Choose from various subdivision patterns:
+     - Regular subdivisions
+     - Patterns with rests
+     - Triplet variations
    - Patterns save with your project
-
-2. **Visual Feedback**:
-   - Active beats shown in real-time
-   - Current position indicator
-   - Beat intensity visualization
 
 ## Technical Documentation
 

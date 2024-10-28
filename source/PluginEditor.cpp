@@ -1,5 +1,6 @@
 ﻿#include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "Colors.h"
 
 namespace
 {
@@ -9,23 +10,6 @@ namespace
     constexpr int PADDING = 20;
     constexpr float ROTARY_START = juce::MathConstants<float>::pi * 1.2f;
     constexpr float ROTARY_END = juce::MathConstants<float>::pi * 2.8f;
-
-    namespace Colors
-    {
-		/* From my color scheme:
-		   https://github.com/lbartoletti/lituus.nvim/blob/main/lua/lituus/colors.lua
-		*/
-        const auto background = juce::Colour (0xFF202020); // bg
-        const auto backgroundAlt = juce::Colour (0xFF2A2A2A); // bgAlt
-        const auto foreground = juce::Colour (0xFFDDDDDD); // fg
-        const auto grey = juce::Colour (0xFF8C8C8C); // grey
-        const auto blue = juce::Colour (0xFF0072F2); // blue
-        const auto green = juce::Colour (0xFF3DFF0D); // green
-        const auto cyan = juce::Colour (0xFF0DFFF8); // cyan
-        const auto red = juce::Colour (0xFFED0F1C); // red
-        const auto yellow = juce::Colour (0xFFFFA919); // yellow
-        const auto orange = juce::Colour (0xFFFF8000); // orange
-    }
 }
 
 //==============================================================================
@@ -90,9 +74,53 @@ MetronomeAudioProcessorEditor::MetronomeAudioProcessorEditor (MetronomeAudioProc
     setupComboBox (otherBeatsSoundComboBox);
     otherBeatsSoundComboBox.addItemList (juce::StringArray ("High Click", "Low Click", "Mute"), 1);
 
+    setupComboBox (restSoundComboBox);
+    restSoundComboBox.addItemList (juce::StringArray { "Same as Beat", "Rest Sound", "Mute" }, 1);
+
+    restSoundAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        audioProcessor.getState(), "restSound", restSoundComboBox);
+
+
     // Subdivision setup
     addAndMakeVisible (subdivisionComboBox);
+    subdivisionComboBox.setProcessor (&audioProcessor);
+    subdivisionComboBox.updateForDenominator (audioProcessor.getBeatDenominator());
 
+
+    // Tooltips
+    // Add tooltips for beat sound combo boxes
+    firstBeatSoundComboBox.setTooltip (
+        "Select the sound for the first beat of each bar.\n"
+        "High Click: Higher pitched click (1500 Hz)\n"
+        "Low Click: Lower pitched click (800 Hz)\n"
+        "Mute: No sound");
+
+    otherBeatsSoundComboBox.setTooltip (
+        "Select the sound for beats other than the first beat.\n"
+        "High Click: Higher pitched click (1500 Hz)\n"
+        "Low Click: Lower pitched click (800 Hz)\n"
+        "Mute: No sound");
+
+    restSoundComboBox.setTooltip (
+        "Select how rests should be played.\n"
+        "Same as Beat: Uses the same sound as the current beat\n"
+        "Rest Sound: Low frequency sound (200 Hz) to help identify rests\n"
+        "Mute: No sound during rests");
+
+    // Add tooltips for other controls
+    bpmSlider.setTooltip ("Adjust tempo (1-500 BPM)");
+
+    playButton.setTooltip ("Start/Stop playback");
+
+    tapTempoButton.setTooltip ("Tap repeatedly to set tempo");
+
+    beatsPerBarComboBox.setTooltip ("Set the number of beats per bar (time signature numerator)");
+
+    beatDenominatorComboBox.setTooltip ("Set the beat unit (time signature denominator)");
+
+    subdivisionComboBox.setTooltip (
+        "Select the subdivision pattern for each beat.\n"
+        "Different patterns available depending on time signature.");
 
     // Set up attachments
     bpmAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -116,13 +144,17 @@ MetronomeAudioProcessorEditor::MetronomeAudioProcessorEditor (MetronomeAudioProc
     subdivisionAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getState(), "subdivision", subdivisionComboBox);
 
+    audioProcessor.getState().addParameterListener ("beatDenominator", this);
+
     // Set background color
     setColour (juce::DocumentWindow::backgroundColourId, Colors::background);
 
     startTimer (50); // Update UI 20 times per second
 }
 
-MetronomeAudioProcessorEditor::~MetronomeAudioProcessorEditor() = default;
+MetronomeAudioProcessorEditor::~MetronomeAudioProcessorEditor() {
+    audioProcessor.getState().removeParameterListener ("beatDenominator", this);
+}
 
 //==============================================================================
 void MetronomeAudioProcessorEditor::paint (juce::Graphics& g)
@@ -185,10 +217,22 @@ void MetronomeAudioProcessorEditor::resized()
 
     // Sound selection area
     auto soundSelectionArea = area.removeFromTop (30);
-    auto comboBoxWidth = (soundSelectionArea.getWidth() - 10) / 2; // Width for each combo box, with 10px spacing
+    auto comboBoxWidth = (soundSelectionArea.getWidth() - 20) / 3; // Width for each combo box, with 2 spaces of 10px
+
+    // First beat sound combo box
     firstBeatSoundComboBox.setBounds (soundSelectionArea.removeFromLeft (comboBoxWidth));
-    soundSelectionArea.removeFromLeft (10); // Spacing between combo boxes
-    otherBeatsSoundComboBox.setBounds (soundSelectionArea);
+
+    // Spacing
+    soundSelectionArea.removeFromLeft (10);
+
+    // Other beats sound combo box
+    otherBeatsSoundComboBox.setBounds (soundSelectionArea.removeFromLeft (comboBoxWidth));
+
+    // Spacing
+    soundSelectionArea.removeFromLeft (10);
+
+    // Rest sound combo box
+    restSoundComboBox.setBounds (soundSelectionArea);
 
     updateBeatVisualizers();
 }
@@ -266,6 +310,16 @@ void MetronomeAudioProcessorEditor::sliderValueChanged (juce::Slider* slider)
     {
         int newValue = static_cast<int> (std::round (slider->getValue()));
         slider->setValue (newValue, juce::sendNotificationAsync);
+    }
+}
+
+void MetronomeAudioProcessorEditor::parameterChanged (const juce::String& parameterID, float /*newValue*/)
+{
+    if (parameterID == "beatDenominator")
+    {
+        juce::MessageManager::callAsync ([this]() {
+            subdivisionComboBox.updateForDenominator (audioProcessor.getBeatDenominator());
+        });
     }
 }
 

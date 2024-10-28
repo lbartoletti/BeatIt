@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SubdivisionTypes.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if (MSVC)
@@ -86,7 +87,7 @@ public:
         for (const auto& interval : intervals)
             averageInterval += interval;
 
-        averageInterval /= intervals.size();
+        averageInterval /= static_cast<double>(intervals.size());
 
         // Convert average interval to BPM (60000ms = 1 minute)
         return 60000.0 / averageInterval;
@@ -137,19 +138,10 @@ public:
         Mute /**< Silent click (no sound output) */
     };
 
-    /**
-     * @enum Subdivision
-     * @brief Defines available rhythmic subdivision patterns
-     * 
-     * Represents different ways a beat can be subdivided, matching common musical notation
-     */
-    enum class Subdivision {
-        Quarter, /**< Single quarter note per beat */
-        TwoEighths, /**< Two eighth notes per beat */
-        ThreeEighths, /**< Triplet feel - three eighth notes per beat */
-        FourSixteenths, /**< Four sixteenth notes per beat */
-        EighthTwoSixteenths, /**< One eighth followed by two sixteenth notes */
-        TwoSixteenthsEighth /**< Two sixteenth notes followed by one eighth note */
+    enum class RestSoundType {
+        SameAsBeat, /**< Same sound as Beat Click */
+        RestSound, /**< Particular rest "sound" */
+        Mute /**< Silent click (no sound output) */
     };
 
     //==============================================================================
@@ -400,6 +392,19 @@ public:
      * @return Vector of normalized positions (0.0 to 1.0) for subdivisions within a beat
      */
     std::vector<float> getSubdivisionTimings() const;
+
+    /**
+     * @brief Updates the subdivision parameter based on selected pattern
+     * @param patternId ID of the selected pattern
+     */
+    void updateSubdivisionFromPattern (int patternId)
+    {
+        if (auto* param = state->getParameter ("subdivision"))
+        {
+            const float normalizedValue = param->convertTo0to1 (static_cast<float> (patternId - 1));
+            param->setValueNotifyingHost (normalizedValue);
+        }
+    }
     ///@}
 
     //==============================================================================
@@ -481,14 +486,6 @@ private:
 
     /** @brief Cached timings for current subdivision pattern */
     std::vector<float> currentSubdivisionTimings;
-
-    /**
-     * @brief Updates internal timing calculations for subdivisions
-     * 
-     * Calculates precise timing positions for each click within a beat
-     * based on the current subdivision pattern.
-     */
-    void updateSubdivisionTimings();
     ///@}
 
     //==============================================================================
@@ -496,5 +493,29 @@ private:
     TapTempoCalculator tapTempoCalculator; ///< Calculator for tap tempo functionality
     ///@}
 
+    //==============================================================================
+    /** @name Subdivision */
+
+    /**
+     * @brief Process click timing based on current subdivision
+     * @param subdivision Current subdivision type
+     * @param samplesPerBeat Number of samples per beat
+     * @param soundPosition Current position in beat
+     * @return true if a click should be triggered
+     */
+    bool processSubdivisionClick(Subdivision subdivision,
+                               int soundPosition,
+
+        bool& isRest);
+
+    ///@}
+
+    
+    //==============================================================================
+    /** @name Rest Sound */
+    juce::AudioBuffer<float> restSoundBuffer;
+    std::atomic<float>* restSoundParameter = nullptr;
+    bool currentClickIsRest = false;
+    ///@}
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MetronomeAudioProcessor)
 };

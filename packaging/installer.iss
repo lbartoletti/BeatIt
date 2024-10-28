@@ -30,7 +30,7 @@ UninstallFilesDir="{commonappdata}\{#ProductName}\uninstall"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{commoncf64}\VST3\{#ProductName}Data"
-Type: filesandordirs; Name: "{commonpf64}\Common Files\LV2\{#ProductName}.lv2"
+Type: filesandordirs; Name: "{commoncf64}\LV2\{#ProductName}Data"
 
 [Files]
 ; VST3 Plugin
@@ -40,7 +40,7 @@ Source: "..\Builds\{#ProjectName}_artefacts\Release\VST3\{#ProductName}.vst3\*";
 Source: "..\Builds\{#ProjectName}_artefacts\Release\Standalone\{#ProductName}.exe"; DestDir: "{commonpf64}\{#Publisher}\{#ProductName}"; Flags: ignoreversion; Components: standalone
 
 ; LV2 Plugin
-Source: "..\Builds\{#ProjectName}_artefacts\Release\LV2\{#ProductName}.lv2\*"; DestDir: "{commonpf64}\Common Files\LV2\{#ProductName}.lv2\"; Excludes: *.ilk; Flags: ignoreversion recursesubdirs; Components: lv2
+Source: "..\Builds\{#ProjectName}_artefacts\Release\LV2\{#ProductName}.lv2\*"; DestDir: "{commoncf64}\LV2\{#ProductName}.lv2\"; Excludes: *.ilk; Flags: ignoreversion recursesubdirs; Components: lv2
 
 [Icons]
 Name: "{autoprograms}\{#ProductName}"; Filename: "{commonpf64}\{#Publisher}\{#ProductName}\{#ProductName}.exe"; Components: standalone 
@@ -53,8 +53,8 @@ Filename: "{cmd}"; \
     Parameters: "/C mklink /D ""{commoncf64}\VST3\{#ProductName}Data"" ""{commonappdata}\{#ProductName}"""; \
     Flags: runascurrentuser; Components: vst3
 
-; Create symlink for LV2 data (if needed)
+; Create symlink for LV2 data
 Filename: "{cmd}"; \
-    WorkingDir: "{commonpf64}\Common Files\LV2"; \
-    Parameters: "/C mklink /D ""{commonpf64}\Common Files\LV2\{#ProductName}Data"" ""{commonappdata}\{#ProductName}"""; \
+    WorkingDir: "{commoncf64}\LV2"; \
+    Parameters: "/C mklink /D ""{commoncf64}\LV2\{#ProductName}Data"" ""{commonappdata}\{#ProductName}"""; \
     Flags: runascurrentuser; Components: lv2

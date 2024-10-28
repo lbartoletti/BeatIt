@@ -1,5 +1,8 @@
 #pragma once
 
+#include "BinaryData.h"
+#include "NotationManager.h"
+#include "NotesCombobox.h"
 #include "PluginProcessor.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -10,35 +13,6 @@
  * @author Lituus (Loïc Bartoletti)
  * @version 0.0.1
  */
-class NotesComboBox : public juce::ComboBox
-{
-public:
-    NotesComboBox()
-    {
-        // Chargement de la fonte musicale
-        musicFont = juce::Font (juce::FontOptions()
-                                    .withHeight (14.0f)
-                                    /* TODO: .withName ("Bravura") */
-                                    );
-
-        // Configuration des items avec les symboles musicaux
-        addItem (u8"♩ Quarter Note", 1);
-        addItem (u8"♫ Two Eighth Notes", 2);
-        addItem (u8"♪♪♪ Triplet", 3);
-        addItem (u8"♬ Four Sixteenth Notes", 4);
-        addItem (u8"♪♬ Eighth + Two Sixteenth", 5);
-        addItem (u8"♬♪ Two Sixteenth + Eighth", 6);
-    }
-
-    void paint (juce::Graphics& g) override
-    {
-        ComboBox::paint (g);
-        g.setFont (musicFont);
-    }
-
-private:
-    juce::Font musicFont;
-};
 
 /**
  * @class MetronomeAudioProcessorEditor
@@ -60,7 +34,8 @@ private:
 class MetronomeAudioProcessorEditor : public juce::AudioProcessorEditor,
                                       public juce::Timer,
                                       public juce::Button::Listener,
-                                      public juce::Slider::Listener
+                                      public juce::Slider::Listener,
+                                      public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -134,6 +109,19 @@ public:
     void sliderValueChanged (juce::Slider* slider) override;
     ///@}
 
+    void updateSubdivisionComboBox (int denominator)
+    {
+        DBG ("prout" << denominator);
+        subdivisionComboBox.updateForDenominator (denominator);
+    }
+
+    /**
+     * @brief Handles parameter changes from the processor
+     * @param parameterID The ID of the changed parameter
+     * @param newValue The new value
+     */
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
+
 private:
     //==============================================================================
     /** @name UI Update Methods */
@@ -187,6 +175,7 @@ private:
     juce::ComboBox beatDenominatorComboBox; /**< Time signature denominator selector */
     juce::ComboBox firstBeatSoundComboBox; /**< First beat sound selector */
     juce::ComboBox otherBeatsSoundComboBox; /**< Other beats sound selector */
+    juce::ComboBox restSoundComboBox; /**< Rest sound selector */
     NotesComboBox subdivisionComboBox; /**<  Combo box for subdivision pattern selection */
 
     ///@}
@@ -201,6 +190,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> firstBeatSoundAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> otherBeatsSoundAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> subdivisionAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> restSoundAttachment;
     ///@}
 
     //==============================================================================

@@ -7,11 +7,17 @@
               pluginVST3Category="Tools" pluginVSTCategory="kPlugCategUnknown">
   <MAINGROUP id="Gh7Xas" name="BeatIt">
     <GROUP id="{C9C17484-5023-FF9F-59D4-B8C4B6A1B932}" name="Resources">
-      <FILE id="pv4vAi" name="Bravura.otf" compile="0" resource="1" file="Resources/Bravura.otf"/>
-      <FILE id="gRfmfq" name="BravuraText.otf" compile="0" resource="1" file="Resources/BravuraText.otf"/>
-      <FILE id="PLS5ri" name="Leland.otf" compile="0" resource="1" file="Resources/Leland.otf"/>
+      <FILE id="f00XQO" name="Leland.otf" compile="0" resource="1" file="assets/Leland.otf"/>
     </GROUP>
     <GROUP id="{40C0E8E6-4154-E048-08BE-C36173F16441}" name="Source">
+      <FILE id="JqOXIZ" name="Colors.h" compile="0" resource="0" file="Source/Colors.h"/>
+      <FILE id="SWKR01" name="NotationManager.cpp" compile="1" resource="0"
+            file="Source/NotationManager.cpp"/>
+      <FILE id="okQ6ex" name="NotationManager.h" compile="0" resource="0"
+            file="Source/NotationManager.h"/>
+      <FILE id="l39AMV" name="NotesCombobox.h" compile="0" resource="0" file="Source/NotesCombobox.h"/>
+      <FILE id="uhZIjH" name="SubdivisionTypes.h" compile="0" resource="0"
+            file="Source/SubdivisionTypes.h"/>
       <FILE id="N5Zoq1" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="rR2Rgd" name="PluginProcessor.h" compile="0" resource="0"

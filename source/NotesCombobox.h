@@ -12,6 +12,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
+#include "Colors.h"
 
 /**
  * @class NotesComboBox
@@ -69,9 +70,10 @@ public:
         }
 
         // Configure appearance
-        setColour (juce::ComboBox::backgroundColourId, juce::Colours::white);
-        setColour (juce::ComboBox::textColourId, juce::Colours::black);
-        setColour (juce::ComboBox::outlineColourId, juce::Colours::grey);
+
+        setColour (juce::ComboBox::backgroundColourId, Colors::backgroundAlt);
+        setColour (juce::ComboBox::textColourId, Colors::foreground);
+        setColour (juce::ComboBox::outlineColourId, Colors::grey);
     }
 
     /**

@@ -8,6 +8,7 @@ enum class Subdivision
 {
     NoSubdivision,    /**< Single note per beat */
     Half,             /**< Two notes per beat */
+    HalfAndRest,      /**< One note + one rest of equal length */
     Triplet,          /**< Three notes per beat */
     Quarter,          /**< Four notes per beat */
     HalfQuarter,      /**< One half + two quarters (e.g., eighth + two sixteenths) */

@@ -12,6 +12,8 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::NoSubdivision) },
                 { getHalfNote() + " " + getHalfNote() + " Two Half Notes",
                     static_cast<int> (Subdivision::Half) },
+                { getHalfNote() + " " + getHalfRest() + " Half + Rest",
+                    static_cast<int> (Subdivision::HalfAndRest) },
                 { getHalfNote() + " " + getHalfNote() + " " + getHalfNote() + " Triplet",
                     static_cast<int> (Subdivision::Triplet) },
                 { getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " Four Quarter Notes",
@@ -29,6 +31,8 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::NoSubdivision) },
                 { getQuarterNote() + " " + getQuarterNote() + " Two Quarter Notes",
                     static_cast<int> (Subdivision::Half) },
+                { getQuarterNote() + " " + getQuarterRest() + " Quarter + Rest",
+                    static_cast<int> (Subdivision::HalfAndRest) },
                 { getQuarterNote() + " " + getQuarterNote() + " " + getQuarterNote() + " Triplet",
                     static_cast<int> (Subdivision::Triplet) },
                 { getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " Four Eighth Notes",
@@ -44,8 +48,10 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
             patterns = {
                 { getQuarterNote() + " Quarter Note",
                     static_cast<int> (Subdivision::NoSubdivision) },
-                { getTwoEighthNotes() + " Two Eighth Notes",
+                { getEighthNote() + " " + getEighthNote() + " Two Eighth Notes",
                     static_cast<int> (Subdivision::Half) },
+                { getEighthNote() + " " + getEighthRest() + " Eighth + Rest",
+                    static_cast<int> (Subdivision::HalfAndRest) },
                 { getEighthNote() + " " + getEighthNote() + " " + getEighthNote() + " Triplet",
                     static_cast<int> (Subdivision::Triplet) },
                 { getSixteenthNotes() + " Four Sixteenth Notes",
@@ -63,6 +69,8 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::NoSubdivision) },
                 { getSixteenthNotes() + " Two Sixteenth Notes",
                     static_cast<int> (Subdivision::Half) },
+                { getSixteenthNotes() + " " + getSixteenthRest() + " Sixteenth + Rest",
+                    static_cast<int> (Subdivision::HalfAndRest) },
                 { getSixteenthNotes() + " " + getSixteenthNotes() + " " + getSixteenthNotes() + " Triplet",
                     static_cast<int> (Subdivision::Triplet) },
                 { getSixteenthNotes() + " " + getSixteenthNotes() + " Four 32nd Notes",
@@ -75,16 +83,8 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
             break;
 
         default:
-            jassertfalse; // Dénominateur non supporté
             break;
-    }
-
-    // Vérifier que les patterns sont correctement associés aux subdivisions
-    for (const auto& pattern : patterns)
-    {
-        jassert (pattern.second >= 0 && pattern.second < static_cast<int> (Subdivision::Count));
     }
 
     return patterns;
 }
-

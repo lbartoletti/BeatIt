@@ -79,12 +79,13 @@ void MetronomeAudioProcessor::initializeParameters()
 
             std::make_unique<juce::AudioParameterChoice>("subdivision", "Beat Subdivision",
                 juce::StringArray{
-                    "No Subdivision",  // 0
-                    "Half",           // 1
-                    "Triplet",        // 2
-                    "Quarter",        // 3
-                    "HalfQuarter",    // 4
-                    "QuarterHalf"     // 5
+                    "No Subdivision",
+                    "Half", 
+                    "Half + Rest",
+                    "Triplet",
+                    "Quarter",
+                    "HalfQuarter",
+                    "QuarterHalf"
                 }, 
                 0), // valeur par défaut
         });
@@ -568,6 +569,7 @@ bool MetronomeAudioProcessor::processSubdivisionClick(Subdivision subdivision,
     switch (subdivision)
     {
         case Subdivision::NoSubdivision:
+        case Subdivision::HalfAndRest:
             return false;
 
         case Subdivision::Half: // Two notes per beat

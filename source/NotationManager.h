@@ -66,12 +66,30 @@ private:
     }
 
     /**
+     * @brief Get Unicode symbol for single sixteenth note
+     * @return String containing the symbol
+     */
+    static const juce::String getSixteenthNote()
+    {
+        return juce::String::fromUTF8 ("\xF0\x9D\x85\xA1"); // Single sixteenth note
+    }
+
+    /**
      * @brief Get Unicode symbol for sixteenth notes
      * @return String containing the symbol
      */
-    static const juce::String getSixteenthNotes()
+    static const juce::String getTwoSixteenthNotes()
     {
         return juce::String::fromUTF8 ("\u266C");
+    }
+
+    /**
+     * @brief Get Unicode symbol for thirty-second note
+     * @return String containing the symbol
+     */
+    static const juce::String getThirtySecondNote()
+    {
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x85\xA2");
     }
 
     /**
@@ -80,7 +98,7 @@ private:
      */
     static const juce::String getWholeRest()
     {
-        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBD");
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBB");
     }
 
     /**
@@ -89,7 +107,7 @@ private:
      */
     static const juce::String getHalfRest()
     {
-        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBE");
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBC");
     }
 
     /**
@@ -98,7 +116,7 @@ private:
      */
     static const juce::String getQuarterRest()
     {
-        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBF");
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBD");
     }
 
     /**
@@ -107,7 +125,7 @@ private:
      */
     static const juce::String getEighthRest()
     {
-        return juce::CharPointer_UTF8 ("\xF0\x9D\x85\x80");
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBE");
     }
 
     /**
@@ -116,6 +134,15 @@ private:
      */
     static const juce::String getSixteenthRest()
     {
-        return juce::CharPointer_UTF8 ("\xF0\x9D\x85\x81");
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x84\xBF");
+    }
+
+    /**
+     * @brief Get Unicode symbol for sixteenth rest
+     * @return String containing the symbol for a sixteenth note rest
+     */
+    static const juce::String getThirtySecondRest()
+    {
+        return juce::CharPointer_UTF8 ("\xF0\x9D\x85\x80");
     }
 };

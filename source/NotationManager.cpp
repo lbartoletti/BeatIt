@@ -133,7 +133,7 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::NoSubdivision) },
 
                 // 2. Two eighth notes
-                { getEighthNote() + " " + getEighthNote() + " Two Eighth Notes",
+                { getTwoEighthNotes() + " Two Eighth Notes",
                     static_cast<int> (Subdivision::Half) },
 
                 // 3. Eighth + Rest
@@ -165,23 +165,23 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::RestHalfRestTriplet) },
 
                 // 10. Four Sixteenth Notes
-                { getSixteenthNotes() + " Four Sixteenth Notes",
+                { getTwoSixteenthNotes() + getTwoSixteenthNotes() + " Four Sixteenth Notes",
                     static_cast<int> (Subdivision::Quarter) },
 
                 // 11. Rest + Sixteenth + Rest + Sixteenth
-                { getSixteenthRest() + " " + getSixteenthNotes() + " " + getSixteenthRest() + " " + getSixteenthNotes() + " Rest + 16th + Rest + 16th",
+                { getSixteenthRest() + " " + getSixteenthNote() + " " + getSixteenthRest() + " " + getSixteenthNote() + " Rest + 16th + Rest + 16th",
                     static_cast<int> (Subdivision::RestEighthPattern) },
 
                 // 12. Sixteenth + Sixteenth + Eighth
-                { getSixteenthNotes() + " " + getSixteenthNotes() + " " + getEighthNote() + " Two 16th + Eighth",
+                { getTwoSixteenthNotes() + " " + getEighthNote() + " Two 16th + Eighth",
                     static_cast<int> (Subdivision::EighthEighthQuarter) },
 
                 // 13. Eighth + Sixteenth + Sixteenth
-                { getEighthNote() + " " + getSixteenthNotes() + " " + getSixteenthNotes() + " Eighth + Two 16th",
+                { getEighthNote() + " " + getTwoSixteenthNotes() + " Eighth + Two 16th",
                     static_cast<int> (Subdivision::QuarterEighthEighth) },
 
                 // 14. Sixteenth + Eighth + Sixteenth
-                { getSixteenthNotes() + " " + getEighthNote() + " " + getSixteenthNotes() + " 16th + Eighth + 16th",
+                { getTwoSixteenthNotes() + " " + getSixteenthNote() + " 16th + Eighth + 16th",
                     static_cast<int> (Subdivision::EighthQuarterEighth) }
             };
             break;
@@ -193,55 +193,55 @@ std::vector<std::pair<juce::String, int>> NotationManager::getPatternsForDenomin
                     static_cast<int> (Subdivision::NoSubdivision) },
 
                 // 2. Two Sixteenth notes
-                { getSixteenthNotes() + " Two Sixteenth Notes",
+                { getSixteenthNote() + " Two Sixteenth Notes",
                     static_cast<int> (Subdivision::Half) },
 
                 // 3. Sixteenth + Rest
-                { getSixteenthNotes() + " " + getSixteenthRest() + " Sixteenth + Rest",
+                { getSixteenthNote() + " " + getSixteenthRest() + " Sixteenth + Rest",
                     static_cast<int> (Subdivision::HalfAndRest) },
 
                 // 4. Rest + Sixteenth
-                { getSixteenthRest() + " " + getSixteenthNotes() + " Rest + Sixteenth",
+                { getSixteenthRest() + " " + getSixteenthNote() + " Rest + Sixteenth",
                     static_cast<int> (Subdivision::RestHalf) },
 
                 // 5. Triplet
-                { getSixteenthNotes() + " " + getSixteenthNotes() + " " + getSixteenthNotes() + " Triplet",
+                { getSixteenthNote() + " " + getSixteenthNote() + " " + getSixteenthNote() + " Triplet",
                     static_cast<int> (Subdivision::Triplet) },
 
                 // 6. Rest + Sixteenth + Sixteenth (triplet)
-                { getSixteenthRest() + " " + getSixteenthNotes() + " " + getSixteenthNotes() + " Rest + Two 16th (Triplet)",
+                { getSixteenthRest() + " " + getSixteenthNote() + " " + getSixteenthNote() + " Rest + Two 16th (Triplet)",
                     static_cast<int> (Subdivision::RestHalfHalfTriplet) },
 
                 // 7. Sixteenth + Rest + Sixteenth (triplet)
-                { getSixteenthNotes() + " " + getSixteenthRest() + " " + getSixteenthNotes() + " 16th + Rest + 16th (Triplet)",
+                { getSixteenthNote() + " " + getSixteenthRest() + " " + getSixteenthNote() + " 16th + Rest + 16th (Triplet)",
                     static_cast<int> (Subdivision::HalfRestHalfTriplet) },
 
                 // 8. Sixteenth + Sixteenth + Rest (triplet)
-                { getSixteenthNotes() + " " + getSixteenthNotes() + " " + getSixteenthRest() + " Two 16th + Rest (Triplet)",
+                { getSixteenthNote() + " " + getSixteenthNote() + " " + getSixteenthRest() + " Two 16th + Rest (Triplet)",
                     static_cast<int> (Subdivision::HalfHalfRestTriplet) },
 
                 // 9. Rest + Sixteenth + Rest (triplet)
-                { getSixteenthRest() + " " + getSixteenthNotes() + " " + getSixteenthRest() + " Rest + 16th + Rest (Triplet)",
+                { getSixteenthRest() + " " + getSixteenthNote() + " " + getSixteenthRest() + " Rest + 16th + Rest (Triplet)",
                     static_cast<int> (Subdivision::RestHalfRestTriplet) },
 
-                // 10. Four 32nd Notes
-                { getTwoEighthNotes() + " Four 32nd Notes",
+                 // 10. Four 32nd Notes
+                { getThirtySecondNote() + " " + getThirtySecondNote() + " " + getThirtySecondNote() + " " + getThirtySecondNote() + " Four 32nd Notes",
                     static_cast<int> (Subdivision::Quarter) },
 
                 // 11. Rest + 32nd + Rest + 32nd
-                { getSixteenthRest() + " " + getTwoEighthNotes() + " " + getSixteenthRest() + " " + getTwoEighthNotes() + " Rest + 32nd + Rest + 32nd",
+                { getSixteenthRest() + " " + getThirtySecondNote() + " " + getSixteenthRest() + " " + getThirtySecondNote() + " Rest + 32nd + Rest + 32nd",
                     static_cast<int> (Subdivision::RestEighthPattern) },
 
                 // 12. Two 32nd + Sixteenth
-                { getTwoEighthNotes() + " " + getTwoEighthNotes() + " " + getSixteenthNotes() + " Two 32nd + 16th",
+                { getThirtySecondNote() + " " + getThirtySecondNote() + " " + getSixteenthNote() + " Two 32nd + 16th",
                     static_cast<int> (Subdivision::EighthEighthQuarter) },
 
                 // 13. Sixteenth + Two 32nd
-                { getSixteenthNotes() + " " + getTwoEighthNotes() + " " + getTwoEighthNotes() + " 16th + Two 32nd",
+                { getSixteenthNote() + " " + getThirtySecondNote() + " " + getThirtySecondNote() + " 16th + Two 32nd",
                     static_cast<int> (Subdivision::QuarterEighthEighth) },
 
                 // 14. 32nd + Sixteenth + 32nd
-                { getTwoEighthNotes() + " " + getSixteenthNotes() + " " + getTwoEighthNotes() + " 32nd + 16th + 32nd",
+                { getThirtySecondNote() + " " + getSixteenthNote() + " " + getThirtySecondNote() + " 32nd + 16th + 32nd",
                     static_cast<int> (Subdivision::EighthQuarterEighth) }
             };
             break;

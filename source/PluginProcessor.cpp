@@ -77,17 +77,24 @@ void MetronomeAudioProcessor::initializeParameters()
                 juce::StringArray{"High Click", "Low Click", "Mute"},
                 1),
 
-            std::make_unique<juce::AudioParameterChoice>("subdivision", "Beat Subdivision",
-                juce::StringArray{
-                    "No Subdivision",
-                    "Half", 
-                    "Half + Rest",
-                    "Triplet",
-                    "Quarter",
-                    "HalfQuarter",
-                    "QuarterHalf"
-                }, 
-                0), // valeur par défaut
+            std::make_unique<juce::AudioParameterChoice> ("subdivision", "Beat Subdivision",
+                                                                                                        juce::StringArray {
+                                                                                                            "No Subdivision", // 0
+                                                                                                            "Half", // 1
+                                                                                                            "Half + Rest", // 2
+                                                                                                            "Rest + Half", // 3
+                                                                                                            "Triplet", // 4
+                                                                                                            "Rest + Half + Half Triplet", // 5
+                                                                                                            "Half + Rest + Half Triplet", // 6
+                                                                                                            "Half + Half + Rest Triplet", // 7
+                                                                                                            "Rest + Half + Rest Triplet", // 8
+                                                                                                            "Quarter", // 9
+                                                                                                            "Rest + Eighth Pattern", // 10
+                                                                                                            "Eighth + Eighth + Quarter", // 11
+                                                                                                            "Quarter + Eighth + Eighth", // 12
+                                                                                                            "Eighth + Quarter + Eighth" // 13
+                                                                                                        },
+                                                                                                        0),
         });
 
     // Get parameter pointers
@@ -173,79 +180,89 @@ void MetronomeAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 }
 
-void MetronomeAudioProcessor::processSample(juce::AudioBuffer<float>& buffer,
+void MetronomeAudioProcessor::processSample (juce::AudioBuffer<float>& buffer,
     int sample,
     int totalNumOutputChannels)
 {
     // Check if we should start a click
     bool startClick = false;
 
-    // Always click on beat start
+    int subdivIndex = static_cast<int> (std::round (subdivisionParameter->load()));
+    auto subdivType = static_cast<Subdivision> (subdivIndex);
+
+    // Determine if we should play the main beat
+    bool shouldPlayMainBeat = true;
     if (soundPosition == 0)
+    {
+        switch (subdivType)
+        {
+            case Subdivision::RestHalf:
+            case Subdivision::RestHalfHalfTriplet:
+            case Subdivision::RestHalfRestTriplet:
+            case Subdivision::RestEighthPattern:
+                shouldPlayMainBeat = false;
+                break;
+            default:
+                shouldPlayMainBeat = true;
+                break;
+        }
+    }
+
+    // Start click either on main beat (if allowed) or subdivision
+    if (soundPosition == 0 && shouldPlayMainBeat)
     {
         startClick = true;
     }
     else if (getPlayState())
     {
-        int subdivIndex = static_cast<int>(std::round(subdivisionParameter->load()));
-        auto subdivType = static_cast<Subdivision>(subdivIndex);
-        
-        startClick = processSubdivisionClick(subdivType, soundPosition);
-        
-        // Log when a subdivision click occurs
-        if (startClick)
-        {
-            DBG("Subdivision click at position: " << soundPosition << " for subdivision type: " << subdivIndex);
-        }
+        startClick = processSubdivisionClick (subdivType, soundPosition);
     }
 
     // Generate click if needed and not muted
-    if (currentBeat >= 0 && 
-        static_cast<size_t>(currentBeat) < mutedBeats.size() && 
-        !mutedBeats[static_cast<size_t>(currentBeat)])
+    if (currentBeat >= 0 && static_cast<size_t> (currentBeat) < mutedBeats.size() && !mutedBeats[static_cast<size_t> (currentBeat)])
     {
         if (startClick)
         {
             // Start a new click
             clickPosition = 0;
-            DBG("Starting new click");
+            DBG ("Starting new click");
         }
 
         // Continue playing current click if active
         if (clickPosition >= 0)
         {
             juce::String soundType;
-            if (currentBeat == 0 && soundPosition == 0)
+            if (currentBeat == 0 && soundPosition == 0 && shouldPlayMainBeat)
             {
                 // First beat of bar
-                soundType = state->getParameter("firstBeatSound")->getCurrentValueAsText();
-                DBG("Using first beat sound: " << soundType);
+                soundType = state->getParameter ("firstBeatSound")->getCurrentValueAsText();
+                DBG ("Using first beat sound: " << soundType);
             }
             else
             {
                 // Subdivision or other beats
-                soundType = state->getParameter("otherBeatsSound")->getCurrentValueAsText();
-                DBG("Using other beat sound: " << soundType);
+                soundType = state->getParameter ("otherBeatsSound")->getCurrentValueAsText();
+                DBG ("Using other beat sound: " << soundType);
             }
 
             // Find and play the appropriate sound
-            if (auto it = soundTypeMap.find(soundType); it != soundTypeMap.end())
+            if (auto it = soundTypeMap.find (soundType); it != soundTypeMap.end())
             {
-                const auto& soundBuffer = getSoundBufferForClickType(it->second);
-                
+                const auto& soundBuffer = getSoundBufferForClickType (it->second);
+
                 if (clickPosition < soundBuffer.getNumSamples())
                 {
-                    float sampleValue = soundBuffer.getSample(0, clickPosition);
+                    float sampleValue = soundBuffer.getSample (0, clickPosition);
                     for (int channel = 0; channel < totalNumOutputChannels; ++channel)
                     {
-                        buffer.setSample(channel, sample, sampleValue);
+                        buffer.setSample (channel, sample, sampleValue);
                     }
                     clickPosition++;
                 }
                 else
                 {
                     clickPosition = -1;
-                    DBG("Click ended");
+                    DBG ("Click ended");
                 }
             }
         }
@@ -257,7 +274,7 @@ void MetronomeAudioProcessor::processSample(juce::AudioBuffer<float>& buffer,
     {
         soundPosition = 0;
         currentBeat = (currentBeat + 1) % getBeatsPerBar();
-        DBG("New beat: " << currentBeat);
+        DBG ("New beat: " << currentBeat);
     }
 }
 
@@ -560,50 +577,83 @@ void MetronomeAudioProcessor::processTapTempo()
     state->getParameter("bpm")->setValueNotifyingHost(normalizedBpm);
 }
 
-bool MetronomeAudioProcessor::processSubdivisionClick(Subdivision subdivision,
+bool MetronomeAudioProcessor::processSubdivisionClick (Subdivision subdivision,
     int currentPosition)
 {
-    if (currentPosition == 0)
-        return false;
-
     switch (subdivision)
     {
         case Subdivision::NoSubdivision:
+            return false;
+
+        case Subdivision::Half:
+            return (currentPosition == samplesPerBeat / 2);
+
         case Subdivision::HalfAndRest:
             return false;
 
-        case Subdivision::Half: // Two notes per beat
+        case Subdivision::RestHalf:
             return (currentPosition == samplesPerBeat / 2);
 
-        case Subdivision::Triplet: // Three notes per beat
+        case Subdivision::Triplet:
         {
             int tripletInterval = samplesPerBeat / 3;
-            return (currentPosition == tripletInterval || 
-                   currentPosition == tripletInterval * 2);
+            return (currentPosition == tripletInterval || currentPosition == tripletInterval * 2);
         }
 
-        case Subdivision::Quarter: // Four notes per beat
+        case Subdivision::RestHalfHalfTriplet: // Rest + Two Eighth  triplet
+        {
+            int tripletInterval = samplesPerBeat / 3;
+            return (currentPosition == tripletInterval ||
+                    currentPosition == tripletInterval * 2);
+        }
+
+        case Subdivision::HalfRestHalfTriplet: // Eighth + Rest + Eighth  triplet
+        {
+            int tripletInterval = samplesPerBeat / 3;
+            return currentPosition == tripletInterval * 2;
+        }
+
+        case Subdivision::HalfHalfRestTriplet: // Two Eighth + Rest  triplet
+        {
+            int tripletInterval = samplesPerBeat / 3;
+            return currentPosition == tripletInterval;
+        }
+
+        case Subdivision::RestHalfRestTriplet: // Rest + Eighth + Rest  triplet
+        {
+            int tripletInterval = samplesPerBeat / 3;
+            return currentPosition == tripletInterval;
+        }
+
+        case Subdivision::Quarter:
+        {
+            int quarterInterval = samplesPerBeat / 4;
+            return (currentPosition == quarterInterval || currentPosition == quarterInterval * 2 || currentPosition == quarterInterval * 3);
+        }
+
+        case Subdivision::RestEighthPattern: // Rest + 16th + Rest + 16th in x/4 for example
         {
             int quarterInterval = samplesPerBeat / 4;
             return (currentPosition == quarterInterval || 
-                   currentPosition == quarterInterval * 2 ||
-                   currentPosition == quarterInterval * 3);
+                    currentPosition == quarterInterval * 3);
         }
 
-        case Subdivision::HalfQuarter: // Eighth + two sixteenths
+        case Subdivision::EighthEighthQuarter:
         {
-            int halfPosition = samplesPerBeat / 2;
-            int quarterPosition = samplesPerBeat * 3 / 4;
-            return (currentPosition == halfPosition || 
-                   currentPosition == quarterPosition);
+            int quarterInterval = samplesPerBeat / 4;
+            return (currentPosition == quarterInterval);
         }
 
-        case Subdivision::QuarterHalf: // Two sixteenths + eighth
+        case Subdivision::QuarterEighthEighth:
         {
-            int quarterPosition = samplesPerBeat / 4;
-            int halfPosition = samplesPerBeat / 2;
-            return (currentPosition == quarterPosition || 
-                   currentPosition == halfPosition);
+            int quarterInterval = samplesPerBeat / 4;
+            return (currentPosition == quarterInterval * 2 || currentPosition == quarterInterval * 3);
+        }
+
+        case Subdivision::EighthQuarterEighth:
+        {
+            int quarterInterval = samplesPerBeat / 4;
+            return (currentPosition == quarterInterval || currentPosition == quarterInterval * 3);
         }
 
         case Subdivision::Count:
@@ -611,4 +661,3 @@ bool MetronomeAudioProcessor::processSubdivisionClick(Subdivision subdivision,
             return false;
     }
 }
-

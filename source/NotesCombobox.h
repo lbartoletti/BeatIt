@@ -12,6 +12,8 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
+#include "BinaryData.h"
+#include "NotationManager.h"
 #include "Colors.h"
 
 /**
@@ -37,7 +39,7 @@ public:
 
         try
         {
-            if (BinaryData::Leland_otfSize == 0)
+            if constexpr (BinaryData::Leland_otfSize == 0)
             {
                 DBG ("Error: Font data size is 0");
                 jassertfalse;
@@ -95,7 +97,7 @@ public:
             currentSubdivision = static_cast<int> (normalizedValue * (static_cast<float> (static_cast<int> (Subdivision::Count) - 1)));
         }
 
-        // Vérifier si la subdivision actuelle est valide pour le nouveau dénominateur
+        // VÃ©rifier si la subdivision actuelle est valide pour le nouveau dÃ©nominateur
         bool isCurrentSubdivisionValid = false;
         for (const auto& pattern : patterns)
         {
@@ -113,7 +115,7 @@ public:
             DBG ("Adding pattern: " << pattern.first << " with value: " << pattern.second);
         }
 
-        // Restaurer la sélection précédente si elle est valide, sinon sélectionner la première option
+        // Restaurer la sÃ©lection prÃ©cÃ©dente si elle est valide, sinon sÃ©lectionner la premiÃ¨re option
         if (isCurrentSubdivisionValid)
         {
             setSelectedId (currentSubdivision + 1, juce::dontSendNotification);

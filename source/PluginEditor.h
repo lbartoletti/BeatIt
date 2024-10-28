@@ -175,6 +175,7 @@ private:
     juce::ComboBox beatDenominatorComboBox; /**< Time signature denominator selector */
     juce::ComboBox firstBeatSoundComboBox; /**< First beat sound selector */
     juce::ComboBox otherBeatsSoundComboBox; /**< Other beats sound selector */
+    juce::ComboBox restSoundComboBox; /**< Rest sound selector */
     NotesComboBox subdivisionComboBox; /**<  Combo box for subdivision pattern selection */
 
     ///@}
@@ -189,6 +190,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> firstBeatSoundAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> otherBeatsSoundAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> subdivisionAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> restSoundAttachment;
     ///@}
 
     //==============================================================================

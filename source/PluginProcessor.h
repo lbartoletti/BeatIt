@@ -138,6 +138,12 @@ public:
         Mute /**< Silent click (no sound output) */
     };
 
+    enum class RestSoundType {
+        SameAsBeat, /**< Same sound as Beat Click */
+        RestSound, /**< Particular rest "sound" */
+        Mute /**< Silent click (no sound output) */
+    };
+
     //==============================================================================
     /** @name Construction and Destruction */
     ///@{
@@ -498,8 +504,18 @@ private:
      * @return true if a click should be triggered
      */
     bool processSubdivisionClick(Subdivision subdivision,
-                               int soundPosition);
+                               int soundPosition,
 
+        bool& isRest);
+
+    ///@}
+
+    
+    //==============================================================================
+    /** @name Rest Sound */
+    juce::AudioBuffer<float> restSoundBuffer;
+    std::atomic<float>* restSoundParameter = nullptr;
+    bool currentClickIsRest = false;
     ///@}
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MetronomeAudioProcessor)
 };

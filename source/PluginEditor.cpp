@@ -90,6 +90,11 @@ MetronomeAudioProcessorEditor::MetronomeAudioProcessorEditor (MetronomeAudioProc
     setupComboBox (otherBeatsSoundComboBox);
     otherBeatsSoundComboBox.addItemList (juce::StringArray ("High Click", "Low Click", "Mute"), 1);
 
+    setupComboBox (restSoundComboBox);
+    restSoundComboBox.addItemList (juce::StringArray { "Same as Beat", "Rest Sound", "Mute" }, 1);
+
+    restSoundAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        audioProcessor.getState(), "restSound", restSoundComboBox);
     // Subdivision setup
     addAndMakeVisible (subdivisionComboBox);
     subdivisionComboBox.setProcessor (&audioProcessor);
@@ -191,10 +196,22 @@ void MetronomeAudioProcessorEditor::resized()
 
     // Sound selection area
     auto soundSelectionArea = area.removeFromTop (30);
-    auto comboBoxWidth = (soundSelectionArea.getWidth() - 10) / 2; // Width for each combo box, with 10px spacing
+    auto comboBoxWidth = (soundSelectionArea.getWidth() - 20) / 3; // Width for each combo box, with 2 spaces of 10px
+
+    // First beat sound combo box
     firstBeatSoundComboBox.setBounds (soundSelectionArea.removeFromLeft (comboBoxWidth));
-    soundSelectionArea.removeFromLeft (10); // Spacing between combo boxes
-    otherBeatsSoundComboBox.setBounds (soundSelectionArea);
+
+    // Spacing
+    soundSelectionArea.removeFromLeft (10);
+
+    // Other beats sound combo box
+    otherBeatsSoundComboBox.setBounds (soundSelectionArea.removeFromLeft (comboBoxWidth));
+
+    // Spacing
+    soundSelectionArea.removeFromLeft (10);
+
+    // Rest sound combo box
+    restSoundComboBox.setBounds (soundSelectionArea);
 
     updateBeatVisualizers();
 }

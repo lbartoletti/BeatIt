@@ -107,7 +107,7 @@ jobs:
         run: choco install ninja
 
       - name: Cache the build
-        uses: mozilla-actions/sccache-action@v0.0.6
+        uses: mozilla-actions/sccache-action@v0.0.7
 
       # Certificates setup for macOS (commented but preserved)
       # - name: Import Certificates
